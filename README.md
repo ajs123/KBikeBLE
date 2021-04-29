@@ -5,7 +5,7 @@ Replacement computer for a Keiser M3 spin bike with Bluetooth services and displ
 Replaces the computer on a Keiser M3 spin bike and adds Bluetooth Cycling Power Service (CPS) and Fitness Machine Service (FTMS). Since it replaces the original computer, a display is provided as well.
 
 ### Capabilities
-* Provides cadence (RPM), gear/resistance, and estimated power. The user can choose between an approximation of the gear displayed by the Keiser computer, or resistance from 0 to 100%, by moving the gear lever to the very top (with or without pedaling).
+* Displays cadence (RPM), gear/resistance, and estimated power. The user can choose between an approximation of the gear displayed by the Keiser computer, or resistance from 0 to 100%, by moving the gear lever to the very top (with or without pedaling).
 * Bluetooth services
   * CPS (typical for power meters) - power and cadence
   * FTMS (typical for ergometers and trainers) - power, resistance setting, and cadence (though no apps I have tried to date read the resistance, and all I have tried want to set the resistance (resistance servo on the "some day" list!))
