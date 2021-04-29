@@ -21,6 +21,10 @@ The M3 computer connects to a sensor/pickup board near the resistance magnet ass
 * Red    - Wiper of the pot
 * Yellow - Ground - other end of the pot, and of the crank switch
 Any replacement RJ9 cord provides access, or you could tap into the Keiser computer connector at the handlebar end. Retaining the ability to use the Keiser computer is recommended. In the absence of power pedals, calibration is done by matching the Keiser power estimates.
+KBikeBLE uses a digital output to apply voltage to the pot (Black wire) and reads the voltage at the wiper. The original Keiser computer appears to operate differently. The ability to leave both connected at the same time is TBD.
 
 ### Computer hardware
 This code is for an Adafruit nrf52840 Express microcontroller and a generic 128x64 OLED display. The code will be the same or very similar for any board with a Nordic nrf52840.
+
+### Calibration
+Calibrations were obtained by switching back and forth between the Keiser computer and KBikeBLE. Finding "gear" positions at which the Keiser is right at the edge between gears and recording the resistance readings provided gear calibration. Data were also collected for the Keiser power estimate vs. gear (or resistance) at a constant cadence, and for power vs. cadence at a couple of fixed resistances. For an eddy current brake, it should be possible to express power as the product of a power vs. speed relationship and a power vs. resistance relationship, and that seems to hold up. All three - "gear" vs. resistance, power vs. speed, power vs. resistance - fit nicely (r^2 around .98) to second order polynomials. With that said, calibrations in the code were done pretty quickly.
