@@ -8,7 +8,7 @@ Replaces the computer on a Keiser M3 spin bike and adds Bluetooth Cycling Power 
 * Provides cadence (RPM), gear/resistance, and estimated power. The user can choose between an approximation of the gear displayed by the Keiser computer, or resistance from 0 to 100%, by moving the gear lever to the very top (with or without pedaling).
 * Bluetooth services
   * CPS (typical for power meters) - power and cadence
-  * FTMS (typical for ergometers, etc.) - power, resistance setting, and cadence (though no apps I have tried to date read the resistance, and all I have tried want to set the resistance (resistance servo on the "some day" list!)
+  * FTMS (typical for ergometers and trainers) - power, resistance setting, and cadence (though no apps I have tried to date read the resistance, and all I have tried want to set the resistance (resistance servo on the "some day" list!))
 * Power savings (runs for several days on a little 350 mAHr Li-poly battery)
   * Display dim (if supported by the display) after 60 (or whatever) seconds without pedaling
   * Display blank and de-energize the resistance sense pot after 300 (or whatever) seconds without pedaling
