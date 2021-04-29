@@ -32,11 +32,11 @@ Any replacement RJ9 cord provides access, or you could tap into the Keiser compu
 KBikeBLE uses a digital output to apply voltage to the pot (Black wire) and reads the voltage at the wiper. Disabling resistance measurements and blanking the display provides good (days) battery life. The original Keiser computer appears to operate differently, perhaps for futher power savings. The ability to leave both connected at the same time is TBD.
 
 ### Computer hardware
-This code is for an Adafruit nrf52840 Express microcontroller and a generic 128x64 OLED display. The code will be the same or very similar for any board with a Nordic nrf52840.
+This code is for an Adafruit nrf52840 Express microcontroller and a generic 128x64 OLED display (SH1106 driver). The code will be the same or very similar for any board with a Nordic nrf52840, and the U8G2 display library will accommodate other displays.
 
 ### Dependencies
-* Adafruit BLE (Bluefruit) 
-* U8G2 display
+* Adafruit BLE (Bluefruit) https://github.com/adafruit/Adafruit_nRF52_Arduino
+* U8G2 display https://github.com/olikraus/u8g2
 
 ### Calibration
 Calibrations were obtained by switching back and forth between the Keiser computer and KBikeBLE. 
