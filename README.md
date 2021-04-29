@@ -26,7 +26,9 @@ The M3 computer connects to a sensor/pickup board near the resistance magnet ass
 * Black  - "Top" of the resistance magnet position sense pot
 * Red    - Wiper of the pot
 * Yellow - Ground - other end of the pot, and of the crank switch
+
 Any replacement RJ9 cord provides access, or you could tap into the Keiser computer connector at the handlebar end. Retaining the ability to use the Keiser computer is recommended. In the absence of power pedals, calibration is done by matching the Keiser power estimates.
+
 KBikeBLE uses a digital output to apply voltage to the pot (Black wire) and reads the voltage at the wiper. The original Keiser computer appears to operate differently. The ability to leave both connected at the same time is TBD.
 
 ### Computer hardware
