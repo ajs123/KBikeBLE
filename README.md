@@ -34,6 +34,10 @@ KBikeBLE uses a digital output to apply voltage to the pot (Black wire) and read
 ### Computer hardware
 This code is for an Adafruit nrf52840 Express microcontroller and a generic 128x64 OLED display. The code will be the same or very similar for any board with a Nordic nrf52840.
 
+### Dependencies
+* Adafruit BLE (Bluefruit) 
+* U8G2 display
+
 ### Calibration
 Calibrations were obtained by switching back and forth between the Keiser computer and KBikeBLE. 
 
