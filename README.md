@@ -13,6 +13,9 @@ Replaces the computer on a Keiser M3 spin bike and adds Bluetooth Cycling Power 
 ** Display dim (if supported by the display) after 60 (or whatever) seconds without pedaling
 ** Display blank and de-energize the resistance sense pot after 300 (or whatever) seconds without pedaling
 
+#### Cautions
+* Once connected to a client via CPS or FTMS, the code stops advertising and stops updating (notify() calls) the other service. Therefore, a device that remains in range with an app that doesn't disconnect at the end of a session can tie up the service, preventing the next user (or different app) from connecting. Release it by quitting the app, or moving far enough away. Once disconnected, advertising of both services will resume.
+
 ## A few details
 ### Bike hardware
 The M3 computer connects to a sensor/pickup board near the resistance magnet assembly using an RJ9 (phone handset) connector. The sensor board has a 10K pot that's linked to the magnet assembly, and a magnetic reed switch (not a Hall sensor) that closes once per crank revolution. Using the standard RJ9 lead colors, the leads are
