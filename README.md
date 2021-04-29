@@ -49,5 +49,7 @@ With all that said, calibrations in the code were done pretty quickly.
 
 ## Inspiration and thanks
 https://github.com/Tschucker/ArduinoBLE-Cycle-Power-Service
+
 https://github.com/turbodonkey/bike_power_meter
+
 The very nice people over at https://github.com/ptx2/gymnasticon
