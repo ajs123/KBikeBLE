@@ -29,7 +29,7 @@ The M3 computer connects to a sensor/pickup board near the resistance magnet ass
 
 Any replacement RJ9 cord provides access, or you could tap into the Keiser computer connector at the handlebar end. Retaining the ability to use the Keiser computer is recommended. In the absence of power pedals, calibration is done by matching the Keiser power estimates.
 
-KBikeBLE uses a digital output to apply voltage to the pot (Black wire) and reads the voltage at the wiper. The original Keiser computer appears to operate differently. The ability to leave both connected at the same time is TBD.
+KBikeBLE uses a digital output to apply voltage to the pot (Black wire) and reads the voltage at the wiper. Disabling resistance measurements and blanking the display provides good (days) battery life. The original Keiser computer appears to operate differently, perhaps for futher power savings. The ability to leave both connected at the same time is TBD.
 
 ### Computer hardware
 This code is for an Adafruit nrf52840 Express microcontroller and a generic 128x64 OLED display. The code will be the same or very similar for any board with a Nordic nrf52840.
