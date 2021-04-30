@@ -43,9 +43,7 @@ Calibrations were obtained by switching back and forth between the Keiser comput
 
 Finding "gear" positions at which the Keiser is right at the edge between gears and recording the resistance readings provided gear calibration. Gear vs. resistance is nicely represented by a second order polynomial, even though it's not clear that the Keiser gear numbers are intended to be evenly spaced. See https://user-images.githubusercontent.com/68538658/113517760-e75ac880-9579-11eb-968e-854193421594.jpeg for info from Keiser on gear position and power. 
 
-Data were also collected for the Keiser power estimate vs. gear (or resistance) at a constant cadence, and for power vs. cadence at a couple of fixed resistances. For an eddy current brake, it should be possible https://link.springer.com/article/10.1007/s00202-017-0636-x to express power as the product of a power vs. speed relationship and a power vs. resistance relationship, and that seems to hold up. Power vs. speed, power vs. resistance - fit nicely (r^2 around .98) to second order polynomials (though see the subtle flattening at the highest resistance setting in the above-referenced graph). 
-
-With all that said, calibrations in the code were done pretty quickly.
+Data were also collected for the Keiser power estimate vs. gear (or resistance) at a constant cadence, and for power vs. cadence at a couple of fixed resistances. For an eddy current brake, it should be possible https://link.springer.com/article/10.1007/s00202-017-0636-x to express power as the product of a power vs. speed relationship and a power vs. resistance relationship, and that seems to hold up. Power vs. speed, power vs. resistance both fit nicely (r^2 around .98) to second order polynomials (though see the subtle flattening at the highest resistance setting in the above-referenced graph). With all that said, calibrations in the code were done pretty quickly.
 
 ## Inspiration and thanks
 https://github.com/Tschucker/ArduinoBLE-Cycle-Power-Service
