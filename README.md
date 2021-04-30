@@ -10,15 +10,16 @@ Replaces the computer on a Keiser M3 spin bike and adds Bluetooth Low Energy (BL
   * CPS (typical for power meters) - power and cadence
   * FTMS (typical for ergometers and trainers) - power, resistance setting, and cadence (though no apps I have tried to date read the resistance, and all I have tried want to set the resistance (resistance servo on the "some day" list!))
 * Power savings (runs for several days on a little 350 mAHr Li-poly battery)
-  * Display dim (if supported by the display) after 60 (or whatever) seconds without pedaling
-  * Display blank and de-energize the resistance sense pot after 300 (or whatever) seconds without pedaling
+  * Display dim (if supported by the display) after 60 (or #defined) seconds without pedaling
+  * Display blank and de-energize the resistance sense pot after 300 (or #defined) seconds without pedaling
+  * More possible with Bluetooth power adjustment, reduced advertising intervals, etc.
 
 #### Cautions
 * Once connected to a client via CPS or FTMS, the code stops advertising and stops updating (notify() calls) the other service. Therefore, a device that remains in range with an app that doesn't disconnect at the end of a session can tie up the service, preventing the next user (or different app) from connecting. Release it by quitting the app, or moving far enough away. Once disconnected, advertising of both services will resume.
 
 ## A few details
 
-A bit more, as well as my To Do list, is in the comments in the code.
+A bit more, as well as my To Do list, are in the comments in the code.
 
 ### Bike hardware
 The M3 computer connects to a sensor/pickup board near the resistance magnet assembly using an RJ9 (phone handset) connector. The sensor board has a 10K pot that's linked to the magnet assembly, and a magnetic reed switch (not a Hall sensor) that closes once per crank revolution. Using the standard RJ9 lead colors, the leads are
