@@ -1,5 +1,5 @@
 # KBikeBLE
-Replacement computer for a Keiser M3 spin bike with Bluetooth services and display
+Arduino-based replacement computer for a Keiser M3 spin bike with Bluetooth services and display
 
 ## What this does
 Replaces the computer on a Keiser M3 spin bike and adds Bluetooth Low Energy (BLE) Cycling Power Service (CPS) and Fitness Machine Service (FTMS). Since it replaces rather than augments the original computer, a simple display is provided as well.
