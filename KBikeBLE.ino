@@ -1,37 +1,48 @@
 /* Bluetooth console for Keiser M3 **********************************************************************************************
-*    Baseline (unversioned) code - start services, simulate pedaling and power
-*    Rev 0.1 - defined D7 (button) as pedal sensor input and added ISRs for sensor events
-*    Rev 0.2 - transitioned to millis() for timing
-*            - completed initial format/notify of Cycling Power Measurement
-*            - update CPM once per second with or without a crank event (good idea, or not?)
-*            - start with notify() both FTM (bike data) and CPM, then when client responds to one disable the other
-*    Rev 0.3 - set up for resistance pot on Gnd, analog in, digital out (in order to turn off by setting high)
-*            - added resistance to bike data (FTM Char) - not sure any clients do anything with it
-*    Rev 0.4 - Added OLED display. Display blanks after extended time without a crank event.
-*            - To keep the display active when BT disconnected, moved the crank event processing outside the bt_connected loop.
-*    Rev 0.5 - Interface with the actual bike instead of user button and test pot.
-*            - Calibration: 
-*               - Resistance reading are normalized from 0 to 100
-*               - Curve fit (polynomial) to map normalized resistance to Keiser gear
-*               - Curve fit (polynomial) for power vs. resistance and power vs. speed
-*    Rev 0.6 - Moving the gear lever to the top switches the display mode between Keiser gear and % resistance
-*    Rev 0.7 - Fixed cadence clock wraparound bug
-*            - Some code cleanup and comments
-*            
-*    TO DO List    .
+     Baseline (unversioned) code - start services, simulate pedaling and power
+     Rev 0.1 - defined D7 (button) as pedal sensor input and added ISRs for sensor events
+     Rev 0.2 - transitioned to millis() for timing
+             - completed initial format/notify of Cycling Power Measurement
+             - update CPM once per second with or without a crank event (good idea, or not?)
+             - start with notify() both FTM (bike data) and CPM, then when client responds to one disable the other
+     Rev 0.3 - set up for resistance pot on Gnd, analog in, digital out (in order to turn off by setting high)
+             - added resistance to bike data (FTM Char) - not sure any clients do anything with it
+     Rev 0.4 - Added OLED display. Display blanks after extended time without a crank event.
+             - To keep the display active when BT disconnected, moved the crank event processing outside the bt_connected loop.
+     Rev 0.5 - Interface with the actual bike instead of user button and test pot.
+             - Calibration:
+                - Resistance reading are normalized from 0 to 100
+                - Curve fit (polynomial) to map normalized resistance to Keiser gear
+                - Curve fit (polynomial) for power vs. resistance and power vs. speed
+     Rev 0.6 - Moving the gear lever to the top switches the display mode between Keiser gear and % resistance
+     Rev 0.7 - Fixed cadence clock wraparound bug
+             - Some code cleanup and comments
+     Rev 0.8 - Protect cadence calculation from the crank event interrupt
+             - Changed the advertised name
+             - Very rudimentary battery level (percentage text)
+             - Changed ADC to 10 bits for improved delineation between gears
+             - Measure resistance 2/sec. Simple tick-based "scheduler" to do resistance check, battery check, other stuff as neeed
+             - Some other cleanup of the main loop
+
+     TO DO List    .
+*      * Consider using a different reference, e.g., Vdd ref for the pot
+*      * Consider closer look at what needs to be recalculated under different circumstances - e.g., 
+*           no need to re-do resistance calc if the value hasn't changed at all
+*      * Waking up the display after it's blanked should cause the battery to be checked (set ticker appropriately)
+*      * Resistance sensor calibration, equivalent to Keiser's procedure
 *      * Because we stop BLE advertising when any client connects, apps that don't disconnect can hog the connection.
-*        Consider continuing to advertise, or some more elegant way to handle this.
+         Consider continuing to advertise, or some more elegant way to handle this.
 *      * Consider a #define DEBUG that turns on Serial and the LED heartbeat
 *      * If continuing to implement FTMS, implement a real calc for speed (mph/kph) as a function of power and cadence
-*      * Monitor battery level and provide an indicator
 *      * Clean up code in connect callbacks
-*      * Look at ways to further save power, especially when not connected 
+*      * Real speed calibration
+*      * Look at ways to further save power, especially when not connected
 *          * CPU sleep, and pedal to wake
 *          * Stop bluetooth advertising under appropriate circumstances
 *          * Only energize the pot when needing a resistance reading (significant savings?)
 *          * Bluetooth parameters
 *      * Consider more careful calibration to the bike, as well as the eddy current brake model used
-*      * Use a proper (pixel-based) right-justification on the display      
+*      * Use a proper (pixel-based) right-justification on the display
 *      * Something more flexible and elegant than the current hard-coded display routine
 *          * In any event, choose between globals and arguments on the display routine(s)
 *      * Improve the display: larger size or double area
@@ -43,14 +54,14 @@
 *                  * Elapsed time
 *      * Other uses for swings of the resistance lever as a signal
 *          * e.g., reset ride between people
-*          
-*    ONE DAY?
+
+     ONE DAY?
 *      * Servo on the resistance for full FTMS function!
 ********************************************************************************************************************************/
 
 /*********************************************************************
-* Development started from the Adafruit HRM BLE example
-/*********************************************************************
+  Development started from the Adafruit HRM BLE example.
+**********************************************************************
   This is an example for our nRF52 based Bluefruit LE modules
 
   Pick one up today in the adafruit shop!
@@ -74,48 +85,54 @@
 #endif
 
 /*********************************************************************
- * Keiser M3 interface through the RJ9 jack (standard colors)
- *    Green  - CRANK_PIN - crank switch to ground (dry switch, not Hall effect)
- *             To a digital input. Transient protection is recommended.
- *    Black  - RESISTANCE_TOP - resistance sense pot high
- *             Use a digital output so it can be turned off to save power
- *    Red    - RESISTANCE_PIN - resistance sense pot wiper
- *             To an analog input channel
- *    Yellow - GROUND - resistance sense pot low / crank switch low side
- *    
- *    Pot is 10K
- *       Red to Yellow at min resistance: 0.33 Ohms
- *       Red to Yellow at max resistance: 5.8  Ohms
- *       With high side through nrf52040 digital output...
- *          Min 8-bit ADC reading 4
- *          Max ADC reading (at orig Keiser transition from 24 to "88") 121
+   Keiser M3 interface through the RJ9 jack (standard colors)
+      Green  - CRANK_PIN - crank switch to ground (dry switch, not Hall effect)
+               To a digital input. Transient protection is recommended.
+      Black  - RESISTANCE_TOP - resistance sense pot high
+               Use a digital output so it can be turned off to save power
+      Red    - RESISTANCE_PIN - resistance sense pot wiper
+               To an analog input channel
+      Yellow - GROUND - resistance sense pot low / crank switch low side
+
+      Pot is 10K
+         Red to Yellow at min resistance: 0.33 Ohms
+         Red to Yellow at max resistance: 5.8  Ohms
+         With high side through nrf52040 digital output...
+            Min 8-bit ADC reading 4
+            Max ADC reading (at orig Keiser transition from 24 to "88") 121
  *********************************************************************/
 //#define CRANK_PIN  7  // Pushbutton on the Adafruit nrf52840 Express, for debugging
 #define CRANK_PIN 9
 #define RESISTANCE_PIN A1
 #define RESISTANCE_TOP 10
+#define BATTERY_PIN    A6
 
 /********************************************************************
-  * Calibration data
-  *    Torque should be modelable as the product of a flux factor and a speed factor
-  *    Power is then torque * speed^2
-  *    Here, the cal is a direct fit of power vs. resistance setting @ constant speed
-  *                 times a fit of power vs. speed at constant resistance setting
-  *    Power = (7.68 - 0.459*R + 0.0685 * R^2) * (-2.93 + 0.0884*C - 3.73E-4*C^2)
-  *                       ( power vs. R @ 60 ) * ( power vs. C @ Keiser gears 10 and 14 )
-  *         where R = normalized resistance ( (Raw - min) * Factor )
-  *               C = cadence
-  *               
-  *    Keiser gears - data taken at the bottom of the range for each gear, 
-  *                   so floor() should be the gear as displayed
-  *       Gear = -1.47 + 0.444*R - 1.67E-3*R^2
-  *           (This is gear bottom, so the floor() should be the gear as displayed)
+    Calibration data
+       Torque should be modelable as the product of a flux factor and a speed factor
+       Power is then torque * speed^2
+       Here, the cal is a direct fit of power vs. resistance setting @ constant speed
+                    times a fit of power vs. speed at constant resistance setting
+       Power = (7.68 - 0.459*R + 0.0685 * R^2) * (-2.93 + 0.0884*C - 3.73E-4*C^2)
+                          ( power vs. R @ 60 ) * ( power vs. C @ Keiser gears 10 and 14 )
+            where R = normalized resistance ( (Raw - min) * Factor )
+                  C = cadence
+
+       Keiser gears - data taken at the bottom of the range for each gear,
+                      so floor() should be the gear as displayed
+          Gear = -1.47 + 0.444*R - 1.67E-3*R^2
+              (This is gear bottom, so the floor() should be the gear as displayed)
   ********************************************************************/
 
 // Normalized resistance is ( reading - MIN ) * FACTOR
-#define MIN_RESISTANCE_READING 4
-#define MAX_RESISTANCE_READING 121
-#define RESISTANCE_FACTOR 0.8547 // (ADC - MIN_RESISTANCE_READING) * RESISTANCE_FACTOR --> 0 .. 100 scale
+// Old 8-bit cal readings
+//#define MIN_RESISTANCE_READING 4
+//#define MAX_RESISTANCE_READING 121
+//#define RESISTANCE_FACTOR 0.8547 // (ADC - MIN_RESISTANCE_READING) * RESISTANCE_FACTOR --> 0 .. 100 scale
+// 10-bit scale - these are simply 4x the old 8-bit cal readings
+#define MIN_RESISTANCE_READING 16
+#define MAX_RESISTANCE_READING 484
+#define RESISTANCE_FACTOR 0.2137
 
 /// These all use y = A*x^2 + B*x + C
 #define PC1 7.68      // Power vs. R @ reference RPM
@@ -129,6 +146,16 @@
 #define GB 0.444
 #define GA -1.67E-03
 
+// The battery is measured through a divider providing half the voltage
+#define VBAT_MV_PER_LSB 1.4648  // 3000 mV ref / 4096 steps * 2.0 divider ratio
+
+/********************************************************************************
+ * Options
+ * 
+ ********************************************************************************/
+#define DIM_TIME 60       // Duration (sec) of no pedaling to dim display (if supported)
+#define BLANK_TIME 180    // Duration (sec) to blank display
+
 // Labels for the display. Right now, they're hard-coded in the display routine.
 //const char GEAR_L[] = "GEAR";
 //const char POWER_L[] = "WATTS";
@@ -138,9 +165,12 @@
 // Pushing the gearshift lever to the top switches between display of Keiser gear number and display of % resistance
 uint8_t lever_state = 0b00000000;
 bool gear_display = true;
-#define BRAKE 100 
+#define BRAKE 100       // More than the user would want the resistance, less than the max reading
+
+/*********************************************************************************/
 
 // BLE data blocks addressable as bytes for flags and words for data
+
 union ble_data_block {  // Used to set flag bytes (0, 1) and data uint16's (words 1, ...)
   uint8_t bytes[2];
   uint16_t words[16];
@@ -148,15 +178,19 @@ union ble_data_block {  // Used to set flag bytes (0, 1) and data uint16's (word
 union ble_data_block bike_data;  // For the Bike Data Characteristic (FiTness Machine Service)
 union ble_data_block power_data; // For the Cycling Power Measurement Characteristic (Cycling Power Service)
 
-// Globals. Variable accessed in multiple places are declared here. 
+// Globals. Variable accessed in multiple places are declared here.
 // Those used only in specific functions are declared within or nearby.
-float cadence;                   // Pedal cadence
-float power;                     // Power, calculated from resistance and cadence to match Keiser's estimates
-float bspeed;                    // Bike speed, required by FTMS, to be estimated from power and cadence.
-float resistance;                // Normalized resistance, determined from the eddy current brake magnet position
-float inst_gear;                 // Keiser gear number, determined by cal to the Keiser computer
-uint16_t crank_count = 0;        // Count of crank rotations, for CPS
 
+float cadence;                   // Pedal cadence, determined from crank event timing
+float power;                     // Power, calculated from resistance and cadence to match Keiser's estimates
+float bspeed;                    // Bike speed, required by FTMS, to be estimated from power and cadence. A real estimate is TO DO
+float resistance;                // Normalized resistance, determined from the eddy current brake magnet position
+float resistance_sq;             // Set when checking resistance, used in both gear and power calcs
+float inst_gear;                 // Keiser gear number, determined by cal to the Keiser computer
+
+uint8_t batt_pct;                 // Battery percentage charge
+
+volatile uint16_t crank_count = 0;      // Cumulative crank rotations - set by the crank sensor ISR, reported by CPS and used to determine cadence
 volatile uint32_t crank_event_time = 0; // Set to the most recent crank event time by the crank sensor ISR [ms]
 volatile uint32_t last_change_time;     // Used in the crank sensor ISR for sensor debounce [ms]. Initialized to millis() in Setup().
 volatile bool new_crank_event = false;  // Set by the crank sensor ISR; cleared by the main loop
@@ -183,6 +217,11 @@ BLECharacteristic char_sensor_loc = BLECharacteristic(0x2A5D);     // Sensor Loc
 
 BLEDis bledis;    // DIS (Device Information Service) helper class instance
 //BLEBas blebas;    // BAS (Battery Service) helper class instance
+
+/*********************************************************************************
+* Display code
+* 
+* ********************************************************************************/
 
 void display_setup(void)
 {
@@ -213,6 +252,10 @@ void display_numbers()
   }
   display.setCursor(0, 95);
   display.print("WATTS");
+  display.setFont(u8g2_font_helvR08_tr);
+  display.setCursor(38, 9);
+  display.print(round(batt_pct));  // Placeholder until we have a battery icon
+  display.print("%");
 
   display.setFont(u8g2_font_helvB24_tf);
   right_just((int) round(cadence), 10, 39, 18);
@@ -226,6 +269,45 @@ void display_numbers()
 
   display.sendBuffer();
 }
+
+/*********************************************************************************
+* Analog input processing - resistance magnet position and battery
+* 
+* ********************************************************************************/
+
+void ADC_setup(void)               // Set up the ADC for ongoing resistance measurement
+{
+  analogReference(AR_INTERNAL);   // 3.6V
+  analogReadResolution(10);       // 10 bits for better gear deliniation and for battery measurement
+  delay(1);                       // Let the ADC settle before any measurements
+}
+
+float readVBAT(void)   // Compacted from the Adafruit example
+{
+  float raw;
+  float mvolts;
+
+  analogReference(AR_INTERNAL_3_0);                    // Set the analog reference to 3.0V (default = 3.6V)
+  analogReadResolution(12); // Can be 8, 10, 12 or 14  // Set the resolution to 12-bit (0..4095)
+  delay(1);                                            // Let the ADC settle
+
+  raw = analogRead(BATTERY_PIN);
+
+  ADC_setup();                                         // Set the ADC back to our default settings
+
+  mvolts = raw * VBAT_MV_PER_LSB;
+  if (mvolts < 3300)                                  // LiPo model...
+    return 0;                                         //   Dead at 3.3V
+  if (mvolts < 3600)                                  //   Last 10% - linear from 3.3 - 3.6 V
+    return (mvolts - 3300) * 0.03333;
+  return min(10 + ((mvolts - 3600) * 0.15F ), 100);   //   10-100% - linear from 3.6 - 4.2 V
+}
+
+
+/*********************************************************************************
+* Bluetooth
+* 
+* ********************************************************************************/
 
 void startAdv(void)
 {
@@ -547,10 +629,13 @@ void format_power_data(void)
 
 }
 
-// ISR for crank sensor events. Triggerd on any change.
-// To keep this short, it simply identifies a crank event as sensor active (0) when it's been inactive (1)
-// for at least MIN_INACTIVE and sets the new_crank_event flag, increments the crank event count, and records the crank_event_time.
-// The main loop handles formatting of crank/cadence data and doing BLE notify.
+/*********************************************************************************
+* ISR for crank sensor events. Triggerd on any change.
+* To keep this short, it simply identifies a crank event as sensor active (0) when it's been inactive (1)
+* for at least MIN_INACTIVE and sets the new_crank_event flag, increments the crank event count, and records the crank_event_time.
+* The main loop handles formatting of crank/cadence data and doing BLE notify.
+*
+* ********************************************************************************/
 
 uint8_t prev_crank_state = 0b10;
 const uint32_t MIN_INACTIVE = 100; // milliseconds
@@ -571,8 +656,8 @@ void crank_callback()
       if ((now - last_change_time) > MIN_INACTIVE) {  // True crank sensor leading edge.
         new_crank_event = true;  // This tells the main loop that there is new crank data
         crank_count++;           // Accumulated crank rotations - used by Cycling Power Measurement and by the main loop to get cadence
-        crank_ticks += min((now - crank_event_time) * 1024/1000, 0xFFFF);  // Crank event clock in 1/1024 sec ticks - used by Cycling Power Measurement
-                                                                           // If the crank has been still for > 2^16 ms, just add 2^16 ms
+        crank_ticks += min((now - crank_event_time) * 1024 / 1000, 0xFFFF); // Crank event clock in 1/1024 sec ticks - used by Cycling Power Measurement
+        // If the crank has been still for > 2^16 ms, just add 2^16 ms
         crank_event_time = now;
       }
       prev_crank_state = 0b00;
@@ -583,17 +668,11 @@ void crank_callback()
   last_change_time = now;
 }
 
-void lever_check()  // Moving the gear lever to the top switches the resistance/gear display mode
-{
-  lever_state = (lever_state << 1) & 0b00000011 | (resistance > BRAKE) ;
-  if (lever_state == 0b00000001) gear_display = !gear_display;
-}
-
 void setup()
 {
-//  Serial.begin(115200);
-//  uint16_t ticks;
-//  for (ticks = 1000; !Serial && (ticks > 0); ticks--) delay(10); // Serial, if present, takes some time to connect
+  //    Serial.begin(115200);
+  //    uint16_t ticks;
+  //    for (ticks = 1000; !Serial && (ticks > 0); ticks--) delay(10); // Serial, if present, takes some time to connect
 
   display_setup();
 
@@ -606,8 +685,8 @@ void setup()
   Bluefruit.begin();
 
   // Set the advertised device name (keep it short!)
-  //Serial.println("Setting Device Name to 'Bikefruit'");
-  Bluefruit.setName("Bikefruit");
+  //Serial.println("Setting Device Name to 'KBikeBLE'");
+  Bluefruit.setName("KBikeBLE");
 
   // Set the connect/disconnect callback handlers
   Bluefruit.Periph.setConnectCallback(connect_callback);
@@ -648,69 +727,101 @@ void setup()
   cp_active = true;
 
   // Set up the analog input for resistance measurement
-  analogReference(AR_INTERNAL);  // 3.6V
-  analogReadResolution(8);       // Little use for more than 8 bits
+  ADC_setup();
+
 }
 
 
+
+/**********************************************************************************************
+   Main loop()
+
+   We define these periodic tasks:
+ *    * Checking the resistance measurement. It helps for this to be updated 2/sec.
+ *    * Checking for crank event(s) and recalculate cadence and power. This could be totally
+        event-based, but here we're doing it once per second.
+ *    * Updating BLE service data, if connected. Service specs call for this to be about 1/sec
+ *    * Checking the battery. 1/min seems like enough.
+ *    * Updating the display: 1/sec unless the resistance has changed.
+
+   We use a little scheduler that calls each function at the appropriate times.
+
+   The Adafruit board uses Open RTOS, and for minimal power we could use the RTOS scheduler.
+   However, Open RTOS already provides a delay() function that's basically a sleep, so there's
+   little (I think) benefit and it would make the code even more board-dependent.
+ **********************************************************************************************/
+
+#define TICK_INTERVAL 500 // ms
+#define BATT_TICKS 64     // Battery check every __ ticks
+#define DEFAULT_TICKS 2   // Default
+
+uint8_t ticker = 0;       // Ticker inits to zero, also is reset under certain circumstances
 float inst_cadence = 0;
 uint16_t last_crank_count = 0;
-uint8_t crank_timer = 0b00000100; // 3 update cycles until setting cadence to zero
+uint8_t crank_still_timer = 3; // Number of updates with no crank event to call the cadence zero
 uint16_t stop_time;
-#define DIM_TIME 60
-#define BLANK_TIME 300
 
-void loop()
+uint8_t prev_resistance = 0;
+bool need_display_update;
+
+void lever_check()  // Moving the gear lever to the top switches the resistance/gear display mode
 {
-  //digitalToggle(LED_RED);
+  lever_state = (lever_state << 1) & 0b00000011 | (resistance > BRAKE) ;
+  if (lever_state == 0b00000001) gear_display = !gear_display;
+}
 
-  // On a new crank event, calculate cadence (needed for both cps and ftm) and set flags
+void update_resistance()
+{
+  float raw_resistance = analogRead(RESISTANCE_PIN);
+  resistance = max((raw_resistance - MIN_RESISTANCE_READING) * RESISTANCE_FACTOR, 0); // Can be > 100 but not < 0
+  resistance_sq = resistance * resistance;
+  if (prev_resistance != floor(resistance)) {
+    lever_check();
+    inst_gear = max(floor(GC + GB * resistance + GA * resistance_sq), 1) ;
+    need_display_update = true;
+  }
+}
+
+void update_battery()
+{
+  batt_pct = readVBAT();
+}
+
+void process_crank_event()
+{
+  // On a new crank event, calculate cadence and set flags
   if ( new_crank_event ) {
-    //Serial.print("New crank event ");
-    //Serial.print(crank_count);
-    //Serial.print(" at ");
-    //Serial.println(crank_event_time);
+
+    // Wake (or keep awake) the display
     stop_time = 0;
     display.setPowerSave(0);
     display.setContrast(255);
+
+    // Process the crank event: Calculate cadence and clear the event flag
+    noInterrupts(); // crank_count and crank_event_time mustn't change
     new_crank_event = false;
     inst_cadence = (crank_count - last_crank_count) * 60000 / (crank_event_time - prior_event_time);
     last_crank_count = crank_count;
     prior_event_time = crank_event_time;
-    crank_timer = 0b00000100;
+    interrupts();
+    crank_still_timer = 0b100;
   }
-  // No crank event for N seconds, where N = bit position of initial crank_timer, interpreted as stopping
   else {
-    crank_timer = ( crank_timer >> 1 );
-    //Serial.print("No event. Crank timer is ");
-    //Serial.println(crank_timer, BIN);
-    if (crank_timer == 0) {
+    //     Serial.print("No event. Crank timer is ");
+    //     Serial.println(crank_still_timer, BIN);
+    crank_still_timer = crank_still_timer >> 1;
+    if (crank_still_timer == 0) {
       inst_cadence = 0;
       if (++stop_time > BLANK_TIME) display.setPowerSave(1);
       else if (stop_time > DIM_TIME) display.setContrast(100);
+      //       Serial.print("stop_time = ");
+      //       Serial.println(stop_time);
     }
   }
+}
 
-  float raw_resistance = analogRead(RESISTANCE_PIN);  
-  resistance = max((raw_resistance - MIN_RESISTANCE_READING) * RESISTANCE_FACTOR, 0); // Can be > 100 but not < 0
-  lever_check();
-  float resistance_sq = resistance * resistance;
-  inst_gear = max(floor(GC + GB * resistance + GA * resistance_sq), 1) ;
-  float inst_power = (PC1 + PB1 * resistance + PA1 * resistance_sq) * ( PC2 + PB2 * cadence + PA2 * cadence * cadence);
-  
-  //Serial.print("Raw, calc resistance = ");
-  //Serial.print(raw_resistance);
-  //Serial.print(",  ");
-  //Serial.println(resistance);
-
-  cadence = (cadence + inst_cadence) / 2;
-  power = (power + inst_power) / 2;
-
-  // Update the display
-  display_numbers();
-  //display_numbers(cadence, resistance, inst_gear);
-  //display_numbers(cadence, resistance, 350);
-
+void updateBLE()
+{
   if ( Bluefruit.connected() ) {
 
     // Update data (with notify()) for the active characteristics. Both are active until the client responds to one of them.
@@ -725,6 +836,34 @@ void loop()
       char_bike_data.notify((uint8_t *) &bike_data, 10);
     }
   }
-  // Only send update once per second
-  delay(1000);
+}
+
+void loop()
+{
+  // Do what's needed based on the ticker value
+  
+  // Initial stuff that happens on every tick
+  need_display_update = false;
+  update_resistance();
+
+  // Stuff that happens on BATT_TICKS
+  if ((ticker % BATT_TICKS) == 0) {
+    update_battery();
+  }
+
+  // The rest
+  if ((ticker % DEFAULT_TICKS) == 0) {
+    process_crank_event();
+    float inst_power = (PC1 + PB1 * resistance + PA1 * resistance_sq) * ( PC2 + PB2 * cadence + PA2 * cadence * cadence); cadence = (cadence + inst_cadence) / 2;
+    power = (power + inst_power) / 2;
+    need_display_update = true;
+    updateBLE();
+  }
+
+  // Final stuff that happens, as needed, on every tick
+  if (need_display_update) display_numbers();  // Update the display
+
+  // Wake up at intervals
+  ticker++;
+  delay(TICK_INTERVAL);
 }
