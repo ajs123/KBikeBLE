@@ -18,3 +18,6 @@
 - V0.11
   - New default cal values - new test bike, and new norms for R to match the published Keiser graph
   - Stopped filtering cadence and power since apps do that (check on whether the display is OK)
+- This V0.12 IN PROGRESS
+  - Some cleanup
+  - Small tweaks to the display
