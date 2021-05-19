@@ -1,4 +1,5 @@
 ## TODO
+- In update_resistance(), correct the logic regarding when the gear needs to be determined
 - Consider using a different reference, e.g., Vdd ref for the pot to maintain cal near battery end of charge
 - Consider closer look at what needs to be recalculated under different circumstances - e.g., no need to re-do resistance calc if the value hasn't changed at all
 - Waking up the display after it's blanked should cause the battery to be checked (set ticker appropriately)
