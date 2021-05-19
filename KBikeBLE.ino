@@ -1,62 +1,4 @@
 /* Bluetooth console for Keiser M3 **********************************************************************************************
-     Baseline (unversioned) code - start services, simulate pedaling and power
-     Rev 0.1 - defined D7 (button) as pedal sensor input and added ISRs for sensor events
-     Rev 0.2 - transitioned to millis() for timing
-             - completed initial format/notify of Cycling Power Measurement
-             - update CPM once per second with or without a crank event (good idea, or not?)
-             - start with notify() both FTM (bike data) and CPM, then when client responds to one disable the other
-     Rev 0.3 - set up for resistance pot on Gnd, analog in, digital out (in order to turn off by setting high)
-             - added resistance to bike data (FTM Char) - not sure any clients do anything with it
-     Rev 0.4 - Added OLED display. Display blanks after extended time without a crank event.
-             - To keep the display active when BT disconnected, moved the crank event processing outside the bt_connected loop.
-     Rev 0.5 - Interface with the actual bike instead of user button and test pot.
-             - Calibration:
-                - Resistance reading are normalized from 0 to 100
-                - Curve fit (polynomial) to map normalized resistance to Keiser gear
-                - Curve fit (polynomial) for power vs. resistance and power vs. speed
-     Rev 0.6 - Moving the gear lever to the top switches the display mode between Keiser gear and % resistance
-     Rev 0.7 - Fixed cadence clock wraparound bug
-             - Some code cleanup and comments
-     Rev 0.8 - Protect cadence calculation from the crank event interrupt
-             - Changed the advertised name
-             - Very rudimentary battery level (percentage text)
-             - Changed ADC to 10 bits for improved delineation between gears
-             - Measure resistance 2/sec. Simple tick-based "scheduler" to do resistance check, battery check, other stuff as neeed
-             - Some other cleanup of the main loop
-
-     TO DO List    .
-*      * Consider using a different reference, e.g., Vdd ref for the pot
-*      * Consider closer look at what needs to be recalculated under different circumstances - e.g., 
-*           no need to re-do resistance calc if the value hasn't changed at all
-*      * Waking up the display after it's blanked should cause the battery to be checked (set ticker appropriately)
-*      * Resistance sensor calibration, equivalent to Keiser's procedure
-*      * Because we stop BLE advertising when any client connects, apps that don't disconnect can hog the connection.
-         Consider continuing to advertise, or some more elegant way to handle this.
-*      * Consider a #define DEBUG that turns on Serial and the LED heartbeat
-*      * If continuing to implement FTMS, implement a real calc for speed (mph/kph) as a function of power and cadence
-*      * Clean up code in connect callbacks
-*      * Real speed calibration
-*      * Look at ways to further save power, especially when not connected
-*          * CPU sleep, and pedal to wake
-*          * Stop bluetooth advertising under appropriate circumstances
-*          * Only energize the pot when needing a resistance reading (significant savings?)
-*          * Bluetooth parameters
-*      * Consider more careful calibration to the bike, as well as the eddy current brake model used
-*      * Use a proper (pixel-based) right-justification on the display
-*      * Something more flexible and elegant than the current hard-coded display routine
-*          * In any event, choose between globals and arguments on the display routine(s)
-*      * Improve the display: larger size or double area
-*          * Things maybe to add
-*              * Resistance % (with Keiser gear, or option based on #define or other)
-*              * Accumulated  data
-*                  * Miles - how to determine??
-*                  * Calories
-*                  * Elapsed time
-*      * Other uses for swings of the resistance lever as a signal
-*          * e.g., reset ride between people
-
-     ONE DAY?
-*      * Servo on the resistance for full FTMS function!
 ********************************************************************************************************************************/
 
 /*********************************************************************
@@ -151,7 +93,7 @@
 
 /********************************************************************************
  * Options
- * 
+ *
  ********************************************************************************/
 #define DIM_TIME 60       // Duration (sec) of no pedaling to dim display (if supported)
 #define BLANK_TIME 180    // Duration (sec) to blank display
@@ -220,7 +162,7 @@ BLEDis bledis;    // DIS (Device Information Service) helper class instance
 
 /*********************************************************************************
 * Display code
-* 
+*
 * ********************************************************************************/
 
 void display_setup(void)
@@ -272,7 +214,7 @@ void display_numbers()
 
 /*********************************************************************************
 * Analog input processing - resistance magnet position and battery
-* 
+*
 * ********************************************************************************/
 
 void ADC_setup(void)               // Set up the ADC for ongoing resistance measurement
@@ -306,7 +248,7 @@ float readVBAT(void)   // Compacted from the Adafruit example
 
 /*********************************************************************************
 * Bluetooth
-* 
+*
 * ********************************************************************************/
 
 void startAdv(void)
@@ -841,7 +783,7 @@ void updateBLE()
 void loop()
 {
   // Do what's needed based on the ticker value
-  
+
   // Initial stuff that happens on every tick
   need_display_update = false;
   update_resistance();

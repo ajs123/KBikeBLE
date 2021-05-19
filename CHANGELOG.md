@@ -1,0 +1,20 @@
+###Changelog
+- V0.7
+  - Initial release
+- V0.8
+  - Protect cadence calculation from the crank event interrupt
+  - Changed the advertised name
+  - Very rudimentary battery level (percentage text)
+  - Changed ADC to 10 bits for improved delineation between gears
+  - Measure resistance 2/sec. Simple tick-based "scheduler" to do resistance check, battery check, other stuff as neeed
+  - Some other cleanup of the main loop
+- V0.9
+  - Settable transmit power and BLE LED interval. Default to -12 dB and 3000 ms.
+  - BLE shutdown after settable time without pedaling
+  - #define SERIAL enables debug messages to the serial monitor (no more commenting out)
+  - #define DEBUG provides conditional messages to the serial monitor
+- V0.10
+  - Rudimentary serial console to support calibration
+- V0.11
+  - New default cal values - new test bike, and new norms for R to match the published Keiser graph
+  - Stopped filtering cadence and power since apps do that (check on whether the display is OK)
