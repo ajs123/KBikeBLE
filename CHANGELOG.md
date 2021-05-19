@@ -1,4 +1,4 @@
-###Changelog
+## Changelog
 - V0.7
   - Initial release
 - V0.8
@@ -6,11 +6,11 @@
   - Changed the advertised name
   - Very rudimentary battery level (percentage text)
   - Changed ADC to 10 bits for improved delineation between gears
-  - Measure resistance 2/sec. Simple tick-based "scheduler" to do resistance check, battery check, other stuff as neeed
+  - Measure resistance 2/sec. Simple tick-based "scheduler" to do resistance check, battery check, other stuff as needed
   - Some other cleanup of the main loop
 - V0.9
   - Settable transmit power and BLE LED interval. Default to -12 dB and 3000 ms.
-  - BLE shutdown after settable time without pedaling
+  - BLE shutdown after settable time without pedaling. This will force a disconnect from any app, though apps left running are free to reconnect when the bike wakes up.
   - #define SERIAL enables debug messages to the serial monitor (no more commenting out)
   - #define DEBUG provides conditional messages to the serial monitor
 - V0.10
