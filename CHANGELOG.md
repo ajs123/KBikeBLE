@@ -21,3 +21,4 @@
 - This V0.12 IN PROGRESS
   - Some cleanup
   - Small tweaks to the display
+  - Began inserting code to use BLEUart as an alternative to serial over USB

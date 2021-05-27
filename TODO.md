@@ -1,28 +1,31 @@
 ## TODO
+- Full range replication of Keiser's power calculaiton - either lookup table or composite curve fit
+- Consider reinstating filtering on the resistance, or option to do so
 - In update_resistance(), correct the logic regarding when the gear needs to be determined
 - Consider using a different reference, e.g., Vdd ref for the pot to maintain cal near battery end of charge
 - Consider closer look at what needs to be recalculated under different circumstances - e.g., no need to re-do resistance calc if the value hasn't changed at all
 - Waking up the display after it's blanked should cause the battery to be checked (set ticker appropriately)
-- Resistance sensor calibration, equivalent to Keiser's procedure
-- Consider a #define DEBUG that turns on Serial and the LED heartbeat
-- If continuing to implement FTMS, implement a real calc for speed (mph/kph) as a function of power and cadence
+- Calibration items
+  - Save calibration in littleFS
+  - Automated sensor calibration, equivalent to Keiser's procedure
+- Console access
+  - Bluetooth console
+  - Does USB or BLEUart console preclude need for bike-based cal triggers like Keiser's?
+- Keeping more parameters or options in the filesystem
+- If continuing to implement FTMS, implement a real model-based calc for speed (mph/kph) as a function of power and cadence
 - Clean up code in connect callbacks
-- Real speed calibration
 - Look at ways to further save power, especially when not connected
   - CPU sleep, and pedal to wake
-  - Stop bluetooth advertising under appropriate circumstances
   - Only energize the pot when needing a resistance reading (significant savings?)
-  - Bluetooth parameters
-- Consider more careful calibration to the bike, as well as the eddy current brake model used
+  - If the hardware reset button is exposed, little harm in just shutting down
 - Use a proper (pixel-based) right-justification on the display
 - Something more flexible and elegant than the current hard-coded display routine
   - In any event, choose between globals and arguments on the display routine(s)
 - Improve the display: larger size or double area
   - Things maybe to add
-    - Resistance % (with Keiser gear, or option based on #define or other)
     - Accumulated  data
-      - Miles - how to determine??
-      - Calories
+      - Miles - requires a model
+      - Calories - requires a model
       - Elapsed time
 - Other uses for swings of the resistance lever as a signal
   - e.g., reset ride between people
