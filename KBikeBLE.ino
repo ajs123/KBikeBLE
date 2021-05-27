@@ -27,6 +27,7 @@
 #include <Wire.h>
 #endif
 
+#define POWERSAVE        // Incorporate power-saving shutdown
 #define SERIAL           // Incorporate serial functions. Will attempt serial connection at startup.
 #define BLEUART          // Activates serial over BLE
 //#define DEBUG            // Activates debug code. Requires SERIAL for any serial console bits.
@@ -96,9 +97,10 @@
    Options
 
  ********************************************************************************/
-#define DIM_TIME 60       // Duration (sec) of no pedaling to dim display (if supported)
-#define BLANK_TIME 180    // Duration (sec) to blank display
-#define BLE_OFF_TIME 1800 // Duration (sec) to turn off Bluetooth to save power. Will disconnect from Central after this time.
+#define DIM_TIME 60         // Duration (sec) of no pedaling to dim display (if supported)
+#define BLANK_TIME 180      // Duration (sec) to blank display
+#define BLE_OFF_TIME 1800   // Duration (sec) to turn off Bluetooth to save power. Will disconnect from Central after this time.
+#define POWERDOWN_TIME 1810 // Duration (sec) to suspend the main loop pending a crank interrupt
 
 #define BLE_TX_POWER -12       // BLE transmit power in dBm
 // - nRF52840: -40, -20, -16, -12, -8, -4, 0, +2, +3, +4, +5, +6, +7, or +8
@@ -133,6 +135,9 @@ float res_factor;
 bool serial_present;
 float resistance_sq;             // Set when checking resistance, used in both gear and power calcs
 float inst_gear;                 // Keiser gear number, determined by cal to the Keiser computer
+#ifdef POWERSAVE
+bool suspended;                  // Set to true when suspending the main loop
+#endif
 
 uint8_t batt_pct;                 // Battery percentage charge
 
@@ -629,6 +634,10 @@ void crank_callback()
 {
   uint32_t now = millis();
   uint8_t state = prev_crank_state | digitalRead(CRANK_PIN);  // Yields a combined state between 0b00 and 0b11
+  
+  #ifdef POWERSAVE
+  if (suspended) resume();   
+  #endif
 
   switch (state) {
     case 0b00 :   // Was low (active) and still low - spurious/noise.
@@ -733,6 +742,26 @@ void setup()
   ADC_setup();
 }
 
+/*********************************************************************************************
+ * Suspend (power save) 
+ *   - de-energizes the resistance sense pot
+ *   - suspends the main loop
+ *********************************************************************************************/
+#ifdef POWERSAVE
+void suspend()
+{
+  digitalWrite(RESISTANCE_TOP, LOW);   // De-energize the resistance pot
+  //suspendLoop();                     // Suspend the main loop(). resumeLoop() doesn't seem to work.        
+  suspended = true;                    // Setting this causes waitForEvent() in the main loop.
+}
+
+void resume()
+{
+  digitalWrite(RESISTANCE_TOP, HIGH);
+  //resumeLoop();
+  suspended = false;
+}
+#endif
 /**********************************************************************************************
    Main loop()
 
@@ -807,7 +836,7 @@ void process_crank_event()
     // Wake (or keep awake) the display
     if (!display_on) {
       display.setPowerSave(0);
-      display.setContrast(255);
+      //display.setContrast(255);
       display_on = true;
     }
 
@@ -831,8 +860,11 @@ void process_crank_event()
         display.setPowerSave(1);
         display_on = false;
       }
-      else if (stop_time > DIM_TIME) display.setContrast(50);
+      else if (stop_time > DIM_TIME) //display.setContrast(20);
       if (stop_time == BLE_OFF_TIME) stopBLE();   // Note == rather than >   - Don't waste time "re-stopping"
+#ifdef POWERSAVE
+      if (stop_time == POWERDOWN_TIME) suspend();
+#endif
     }
   }
 }
@@ -1010,6 +1042,13 @@ void loop()
   if (need_display_update && display_on) display_numbers();  // Update the display
 
   // Wake up at intervals
+  #ifdef POWERSAVE
+  if (suspended) 
+  {
+    waitForEvent();  // This returns immediately if there's been an interrupt since the last call, which there has been
+    waitForEvent();
+  }
+  #endif
   ticker++;
   delay(TICK_INTERVAL);
 }

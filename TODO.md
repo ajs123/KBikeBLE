@@ -1,5 +1,6 @@
 ## TODO
 - Full range replication of Keiser's power calculaiton - either lookup table or composite curve fit
+- In power save, verify waitForEvent() behavior (need or not for current two calls)
 - Consider reinstating filtering on the resistance, or option to do so
 - In update_resistance(), correct the logic regarding when the gear needs to be determined
 - Consider using a different reference, e.g., Vdd ref for the pot to maintain cal near battery end of charge
@@ -15,8 +16,7 @@
 - If continuing to implement FTMS, implement a real model-based calc for speed (mph/kph) as a function of power and cadence
 - Clean up code in connect callbacks
 - Look at ways to further save power, especially when not connected
-  - CPU sleep, and pedal to wake
-  - Only energize the pot when needing a resistance reading (significant savings?)
+  - Check whether waitForEvent() is as effective as other means
   - If the hardware reset button is exposed, little harm in just shutting down
 - Use a proper (pixel-based) right-justification on the display
 - Something more flexible and elegant than the current hard-coded display routine
