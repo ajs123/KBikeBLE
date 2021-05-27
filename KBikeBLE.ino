@@ -28,6 +28,7 @@
 #endif
 
 #define SERIAL           // Incorporate serial functions. Will attempt serial connection at startup.
+#define BLEUART          // Activates serial over BLE
 //#define DEBUG            // Activates debug code. Requires SERIAL for any serial console bits.
 
 #if defined(SERIAL) && defined(DEBUG)
@@ -164,6 +165,9 @@ BLECharacteristic char_sensor_loc = BLECharacteristic(0x2A5D);     // Sensor Loc
 
 BLEDis bledis;    // DIS (Device Information Service) helper class instance
 //BLEBas blebas;    // BAS (Battery Service) helper class instance
+#ifdef BLEUART
+BLEUart bleuart;  // UART over BLE
+#endif
 
 /*********************************************************************************
   Display code
@@ -279,6 +283,10 @@ void startAdv(void)
 
   Bluefruit.Advertising.addService(svc_ftms, svc_cps);      // Advertise the services
   Bluefruit.Advertising.addData(0x16, FTMS_Adv_Data, 5);    // Required data field for FTMS
+
+  #ifdef BLEUART
+  Bluefruit.Advertising.addService(bleuart);
+  #endif
 
   Bluefruit.Advertising.addFlags(BLE_GAP_ADV_FLAGS_LE_ONLY_GENERAL_DISC_MODE);
   Bluefruit.Advertising.addTxPower();
@@ -699,6 +707,11 @@ void setup()
   setupFTMS();
   setupCPS();
 
+  // Start the BLEUart service
+  #ifdef BLEUART
+  bleuart.begin();
+  #endif
+
   // Setup the advertising packet(s)
   startAdv();
 
@@ -948,6 +961,17 @@ void serial_check(void)
   }
 }
 
+#ifdef BLEUART
+void bleuart_check(void)
+{
+  while (bleuart.available())
+  {
+    uint8_t ch = (uint8_t) bleuart.read();
+    bleuart.write(ch);
+  }
+}
+#endif
+
 void loop()
 {
   // Do what's needed based on the ticker value
@@ -959,6 +983,10 @@ void loop()
 
   #ifdef SERIAL
   serial_check();
+  #endif
+
+  #ifdef BLEUART
+  bleuart_check();
   #endif
 
   // Stuff that happens on BATT_TICKS
