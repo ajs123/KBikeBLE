@@ -20,8 +20,9 @@
   - Stopped filtering cadence and power since apps do that (check on whether the display is OK)
 - V0.12 IN PROGRESS
   - Some cleanup
-  - Small tweaks to the display
+  - Small tweaks to the display; improvements to dim/powersave code
   - Began inserting code to use BLEUart as an alternative to serial over USB
-  - Optional (for now) power saving:
+  - Optional (for now) power saving measures:
     - De-energize the resistance sensing pot
-    - Processor power save idle in the main loop, using waitForEvent()
+    - Processor power save idle in the main loop, using Open RTOS waitForEvent()
+  - ADC oversampling to reduce resistance measurement noise

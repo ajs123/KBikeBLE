@@ -20,15 +20,15 @@
 
 #include <bluefruit.h>   // nrf52 built-in bluetooth
 #include <U8g2lib.h>     // OLED library
-#ifdef U8X8_HAVE_HW_SPI
-#include <SPI.h>
-#endif
-#ifdef U8X8_HAVE_HW_I2C  // For this hardware (nrf52840) should just be able to include Wire.h
-#include <Wire.h>
-#endif
+  #ifdef U8X8_HAVE_HW_SPI
+  #include <SPI.h>
+  #endif
+  #ifdef U8X8_HAVE_HW_I2C  // For this hardware (nrf52840) should just be able to include Wire.h
+  #include <Wire.h>
+  #endif
 
 #define POWERSAVE        // Incorporate power-saving shutdown
-#define SERIAL           // Incorporate serial functions. Will attempt serial connection at startup.
+//#define SERIAL           // Incorporate serial functions. Will attempt serial connection at startup.
 #define BLEUART          // Activates serial over BLE
 //#define DEBUG            // Activates debug code. Requires SERIAL for any serial console bits.
 
@@ -91,7 +91,7 @@
 #define GA -2.35E-03
 
 // The battery is measured through a divider providing half the voltage
-#define VBAT_MV_PER_LSB 1.4648  // 3000 mV ref / 4096 steps * 2.0 divider ratio
+#define VBAT_MV_PER_LSB 7.03125  // 3600 mV ref / 1024 steps * 2.0 divider ratio
 
 /********************************************************************************
    Options
@@ -99,12 +99,16 @@
  ********************************************************************************/
 #define DIM_TIME 60         // Duration (sec) of no pedaling to dim display (if supported)
 #define BLANK_TIME 180      // Duration (sec) to blank display
-#define BLE_OFF_TIME 1800   // Duration (sec) to turn off Bluetooth to save power. Will disconnect from Central after this time.
-#define POWERDOWN_TIME 1810 // Duration (sec) to suspend the main loop pending a crank interrupt
+#define BLE_OFF_TIME 900    // Duration (sec) to turn off Bluetooth to save power. Will disconnect from Central after this time.
+#define POWERDOWN_TIME 1200 // Duration (sec) to suspend the main loop pending a crank interrupt
+#define CONTRAST_FULL 255
+#define CONTRAST_DIM 0
+
+#define ANALOG_OVERSAMPLE 4 // Resistance measurements can be noisy!
 
 #define BLE_TX_POWER -12       // BLE transmit power in dBm
 // - nRF52840: -40, -20, -16, -12, -8, -4, 0, +2, +3, +4, +5, +6, +7, or +8
-#define BLE_LED_INTERVAL 3000  // ms
+#define BLE_LED_INTERVAL 1000  // ms
 
 // Pushing the gearshift lever to the top switches between display of Keiser gear number and display of % resistance
 uint8_t lever_state = 0b00000000;
@@ -132,7 +136,7 @@ float resistance;                // Normalized resistance, determined from the e
 float raw_resistance;            // Raw resistance measurement from the ADC. Global because it's reported in the serial monitor
 float res_offset;                // Cal fators - raw_resistance to normalized resistance
 float res_factor;
-bool serial_present;
+bool serial_present = false;
 float resistance_sq;             // Set when checking resistance, used in both gear and power calcs
 float inst_gear;                 // Keiser gear number, determined by cal to the Keiser computer
 #ifdef POWERSAVE
@@ -152,10 +156,12 @@ uint32_t prior_event_time = 0;          // Used in the main loop to hold the tim
 bool ftm_active = true;          // Once a client connects with either service, we stop updating the other.
 bool cp_active = true;
 
-bool display_on = true;          // Flag to avoid certain tasks when the display is blanked
+uint8_t display_state = 2;          // Display state: 0 = off, 1 = dim, 2 = full on
 
 // U8G2 display instance. What goes here depends upon the specific display and interface. See U8G2 examples.
 U8G2_SH1106_128X64_NONAME_F_HW_I2C display(U8G2_R1, /* reset=*/ U8X8_PIN_NONE); // 128 x 64 SH1106 display on hardware I2C
+//U8G2_SH1106_128X64_WINSTAR_F_HW_I2C display(U8G2_R1, /* reset=*/ U8X8_PIN_NONE);
+//U8G2_SH1106_128X64_VCOMH0_F_HW_I2C display(U8G2_R1, /* reset=*/ U8X8_PIN_NONE); // Provides a wider setContrast() range but at the expense of uniformity when dimmed
 
 // FTMS Service Definitions
 BLEService        svc_ftms = BLEService(0x1826);                 // FiTness machine service
@@ -241,31 +247,29 @@ void display_numbers()
 void ADC_setup(void)               // Set up the ADC for ongoing resistance measurement
 {
   analogReference(AR_INTERNAL);   // 3.6V
+  analogOversampling(ANALOG_OVERSAMPLE);
   analogReadResolution(10);       // 10 bits for better gear deliniation and for battery measurement
   delay(1);                       // Let the ADC settle before any measurements
 }
 
 float readVBAT(void)   // Compacted from the Adafruit example
 {
-  float raw;
   float mvolts;
 
-  analogReference(AR_INTERNAL_3_0);                    // Set the analog reference to 3.0V (default = 3.6V)
-  analogReadResolution(12); // Can be 8, 10, 12 or 14  // Set the resolution to 12-bit (0..4095)
-  delay(1);                                            // Let the ADC settle
+  //analogReference(AR_INTERNAL_3_0);                    // Set the analog reference to 3.0V (default = 3.6V)
+  //analogReadResolution(12); // Can be 8, 10, 12 or 14  // Set the resolution to 12-bit (0..4095)
+  //delay(1);                                            // Let the ADC settle
 
-  raw = analogRead(BATTERY_PIN);
+  mvolts = analogRead(BATTERY_PIN) * VBAT_MV_PER_LSB;
 
-  ADC_setup();                                         // Set the ADC back to our default settings
+  //ADC_setup();                                         // Set the ADC back to our default settings
 
-  mvolts = raw * VBAT_MV_PER_LSB;
   if (mvolts < 3300)                                  // LiPo model...
     return 0;                                         //   Dead at 3.3V
   if (mvolts < 3600)                                  //   Last 10% - linear from 3.3 - 3.6 V
     return (mvolts - 3300) * 0.03333;
   return min(10 + ((mvolts - 3600) * 0.15F ), 100);   //   10-100% - linear from 3.6 - 4.2 V
 }
-
 
 /*********************************************************************************
   Bluetooth
@@ -806,7 +810,16 @@ void lever_check()  // Moving the gear lever to the top switches the resistance/
 
 void update_resistance()
 {
-  raw_resistance = analogRead(RESISTANCE_PIN);
+  /* In-code oversampling
+  float rx = analogRead(RESISTANCE_PIN);
+  for (int ir = 0; ir < 2; ir++) 
+  {
+    delay(10);
+    rx += analogRead(RESISTANCE_PIN);
+  }
+  raw_resistance = rx/3;
+  */
+  raw_resistance = analogRead(RESISTANCE_PIN);  // ADC set to oversample
   resistance = max((raw_resistance - res_offset) * res_factor, 0);
   resistance_sq = resistance * resistance;
   uint8_t int_resistance = round(resistance);
@@ -828,16 +841,18 @@ void update_battery()
 void process_crank_event()
 {
   // On a new crank event, calculate cadence and set flags
-  if ( new_crank_event ) {
+  if (new_crank_event)
+  {
 
     // Prevent power saving stuff
     stop_time = 0;
 
-    // Wake (or keep awake) the display
-    if (!display_on) {
+    // Wake the display
+    if (display_state < 2)
+    {
       display.setPowerSave(0);
-      //display.setContrast(255);
-      display_on = true;
+      display.setContrast(CONTRAST_FULL);
+      display_state = 2;
     }
 
     // Be sure BLE is running
@@ -852,18 +867,27 @@ void process_crank_event()
     interrupts();
     crank_still_timer = 0b100;
   }
-  else {
+  else
+  {
     crank_still_timer = crank_still_timer >> 1;
-    if (crank_still_timer == 0) {
+    if (crank_still_timer == 0)
+    {
       inst_cadence = 0;
-      if (++stop_time > BLANK_TIME) {
+      if (++stop_time > BLANK_TIME)
+      {
         display.setPowerSave(1);
-        display_on = false;
+        display_state = 0;
       }
-      else if (stop_time > DIM_TIME) //display.setContrast(20);
-      if (stop_time == BLE_OFF_TIME) stopBLE();   // Note == rather than >   - Don't waste time "re-stopping"
+      if (stop_time > DIM_TIME) 
+      {
+        display.setContrast(CONTRAST_DIM);
+        display_state = 1;
+      }
+      if (stop_time == BLE_OFF_TIME)
+        stopBLE(); // Note == rather than >   - Don't waste time "re-stopping"
 #ifdef POWERSAVE
-      if (stop_time == POWERDOWN_TIME) suspend();
+      if (stop_time == POWERDOWN_TIME)
+        suspend();
 #endif
     }
   }
@@ -1039,13 +1063,13 @@ void loop()
   }
 
   // Final stuff that happens, as needed, on every tick
-  if (need_display_update && display_on) display_numbers();  // Update the display
+  if (need_display_update && (display_state > 0)) display_numbers();  // Update the display
 
   // Wake up at intervals
   #ifdef POWERSAVE
   if (suspended) 
   {
-    waitForEvent();  // This returns immediately if there's been an interrupt since the last call, which there has been
+    waitForEvent();  // This returns immediately if there's been an interrupt since the last call
     waitForEvent();
   }
   #endif
