@@ -1,0 +1,4 @@
+{
+    "board": "adafruit:nrf52:feather52840",
+    "port": "/dev/tty.usbmodem141201"
+}
