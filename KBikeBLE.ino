@@ -220,7 +220,7 @@ void ADC_setup(void)               // Set up the ADC for ongoing resistance meas
 {
   analogReference(AR_INTERNAL);   // 3.6V
   analogOversampling(ANALOG_OVERSAMPLE);
-  analogReadResolution(10);       // 10 bits for better gear deliniation and for battery measurement
+  analogReadResolution(10);       // 10 bits for better gear delineation and for battery measurement
   delay(1);                       // Let the ADC settle before any measurements
 }
 
@@ -1050,13 +1050,17 @@ void loop()
 
   // Other things happen at the default tick interval
   if ((ticker % DEFAULT_TICKS) == 0) {
+    
     process_crank_event();
+    
+    //cadence = inst_cadence;
+    cadence = (cadence + inst_cadence) / 2; //TEMPORARY UNTIL WE FIND MISSED EVENT BUG!
+    
     float inst_power = max(sinterp(gears, power90, slopes, inst_gear, resistance) * ( PC2 + PB2 * cadence + PA2 * cadence * cadence), 0);
     //float inst_power = max((PC1 + PB1 * resistance + PA1 * resistance_sq) * ( PC2 + PB2 * cadence + PA2 * cadence * cadence), 0);
-    cadence = inst_cadence;
-    //cadence = (cadence + inst_cadence) / 2;
     power = inst_power;
     //power = (power + inst_power) / 2;
+    
     need_display_update = true;
     updateBLE();
   }

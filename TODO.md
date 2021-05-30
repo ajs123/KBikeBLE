@@ -1,4 +1,5 @@
 ## TODO
+- BUG FIND: Cadence calculated in process_crank_event is occasionally half of actual
 - If displaying gears, display will update on half-second intervals only if the integer resistance changes
 - In power save, verify waitForEvent() behavior (need or not for current two calls)
 - Verify measurement stability with ADC oversampling
