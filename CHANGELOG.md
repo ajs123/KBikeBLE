@@ -26,3 +26,8 @@
     - De-energize the resistance sensing pot
     - Processor power save idle in the main loop, using Open RTOS waitForEvent()
   - ADC oversampling to reduce resistance measurement noise
+  - Eliminated change in ADC settings when checking the battery (higher resolution not needed)
+- V0.13
+  - Table lookup instead of quadratic fit for gear determination
+    - Using more evenly spaced gears than Keiser's originals. power_gear_tables.h has the Keiser originals.
+  - Table interpolation instead of polynomial fits for power determination

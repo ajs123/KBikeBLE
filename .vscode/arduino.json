@@ -1,4 +1,5 @@
 {
     "board": "adafruit:nrf52:feather52840",
-    "port": "/dev/tty.usbmodem141201"
+    "port": "/dev/tty.usbmodem141201",
+    "sketch": "KBikeBLE.ino"
 }

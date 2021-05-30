@@ -1,7 +1,7 @@
 ## TODO
-- Full range replication of Keiser's power calculaiton - either lookup table or composite curve fit
+- If displaying gears, display will update on half-second intervals only if the integer resistance changes
 - In power save, verify waitForEvent() behavior (need or not for current two calls)
-- Consider reinstating filtering on the resistance, or option to do so
+- Verify measurement stability with ADC oversampling
 - In update_resistance(), correct the logic regarding when the gear needs to be determined
 - Consider using a different reference, e.g., Vdd ref for the pot to maintain cal near battery end of charge
 - Consider closer look at what needs to be recalculated under different circumstances - e.g., no need to re-do resistance calc if the value hasn't changed at all

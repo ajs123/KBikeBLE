@@ -1,5 +1,5 @@
  /* Bluetooth console for Keiser M3 **********************************************************************************************
-   V0.12
+   V0.13
 ********************************************************************************************************************************/
 
 /*********************************************************************
@@ -27,12 +27,15 @@
   #include <Wire.h>
   #endif
 
-#define POWERSAVE        // Incorporate power-saving shutdown
-//#define SERIAL           // Incorporate serial functions. Will attempt serial connection at startup.
-#define BLEUART          // Activates serial over BLE
-//#define DEBUG            // Activates debug code. Requires SERIAL for any serial console bits.
+#include "power_gear_tables.h"
+#include "calibration.h"
 
-#if defined(SERIAL) && defined(DEBUG)
+#define POWERSAVE        // Incorporate power-saving shutdown
+//#define USE_SERIAL           // Incorporate serial functions. Will attempt serial connection at startup.
+#define BLEUART          // Activates serial over BLE
+//#define DEBUG            // Activates debug code. Requires USE_SERIAL for any serial console bits.
+
+#if defined(USE_SERIAL) && defined(DEBUG)
    #define DEBUG(x,l) Serial.print(x); Serial.print(l);
 #else
    #define DEBUG(x,l)
@@ -57,38 +60,7 @@
 #define RESISTANCE_TOP 10
 #define BATTERY_PIN    A6
 
-/********************************************************************
-    Calibration data
-       Here, the cal is a direct fit of power vs. resistance setting @ constant speed
-                    times a fit of power vs. speed at constant resistance setting
-       Power = () power vs. R @ 60 ) * ( power vs. C @ Keiser gears 10, 12, 14 and 16 )
-            where R = normalized resistance (0-100 over full Keiser range)
-                  C = cadence (RPM)
 
-       Keiser gears - data taken at the bottom of the range for each gear,
-                      so floor() should be the gear displayed
-  ********************************************************************/
-
-// Normalized resistance (0-100 scale) is ( ADC reading - OFFSET ) * FACTOR
-// Normalized resistance will exceed 100% because there is magnet assembly excursion beyond the top of the range,
-//    prior to the mechanical brake contacting the flywheel, and at the bottom of the range as well.
-// These are default cals, used if the filesystem has nothing
-#define RESISTANCE_OFFSET 154.6       // From Raw ADC - Keiser graph regression
-#define RESISTANCE_FACTOR 0.2182
-
-/// These all use y = A*x^2 + B*x + C
-#define PC1 29.3      // Power_ref vs. R @ reference cadence (Ref cadence is 90 RPM)
-#define PB1 -1.97     // This fit is done for gears 2 to 22.
-#define PA1 0.135     // Covering the full range requires a 4th order polynomial or
-                      // another, e.g., table lookup, approach.
-
-#define PC2 -2.70E-03 // Power/Power_ref vs. RPM
-#define PB2 6.79E-03
-#define PA2 4.75E-05
-
-#define GC -2.97      // Keiser gear vs. normalized resistance
-#define GB 0.516
-#define GA -2.35E-03
 
 // The battery is measured through a divider providing half the voltage
 #define VBAT_MV_PER_LSB 7.03125  // 3600 mV ref / 1024 steps * 2.0 divider ratio
@@ -138,7 +110,7 @@ float res_offset;                // Cal fators - raw_resistance to normalized re
 float res_factor;
 bool serial_present = false;
 float resistance_sq;             // Set when checking resistance, used in both gear and power calcs
-float inst_gear;                 // Keiser gear number, determined by cal to the Keiser computer
+uint8_t inst_gear;               // Gear number: Index into power tables and, optionally, displayed
 #ifdef POWERSAVE
 bool suspended;                  // Set to true when suspending the main loop
 #endif
@@ -230,7 +202,7 @@ void display_numbers()
   display.setFont(u8g2_font_helvB24_tn);
   right_just((int) round(cadence), 10, 43, 18);
   if (gear_display) {
-    right_just((int) round(inst_gear), 10, 85, 18);
+    right_just(inst_gear, 10, 85, 18);
   } else {
     right_just((int) round(resistance), 10, 85, 18);
   }
@@ -269,6 +241,31 @@ float readVBAT(void)   // Compacted from the Adafruit example
   if (mvolts < 3600)                                  //   Last 10% - linear from 3.3 - 3.6 V
     return (mvolts - 3300) * 0.03333;
   return min(10 + ((mvolts - 3600) * 0.15F ), 100);   //   10-100% - linear from 3.6 - 4.2 V
+}
+
+/*****************************************************************************************************
+ * Gear and power determination
+ *****************************************************************************************************/
+
+int gear_lookup(float resistance) 
+{
+    int ix = inst_gear;                       // The gear points to the top bound
+    
+    if (resistance >= gears[ix]) {                                    // If above the top bound, index up
+        if (ix >= tablen) return tablen;                              // But not if already at the top
+            for ( ; (resistance > gears[++ix]) && (ix < tablen); );   // Index up until resistance <= top bound or at end of the table 
+        return ix;
+    } else {
+        for ( ; (resistance < gears[--ix]) && (ix > 0); );            // Index down until resistance >= bottom bound or at end of table
+        return ++ix;                                                  // Decremented index is pointing to the bottom bound, so add 1
+    } 
+}
+
+float sinterp(const float x_ref[], const float y_ref[], const float slopes[], int index, float x)
+{
+    float x1 = x_ref[index - 1];           // Index points to the top bound
+    float y1 = y_ref[index - 1]; 
+    return y1 + (x - x1) * slopes[index];  // Slope[index] is the slopes of the trailing interval
 }
 
 /*********************************************************************************
@@ -677,7 +674,7 @@ void init_cal()
 
 void setup()
 {
-#ifdef SERIAL
+#ifdef USE_SERIAL
   Serial.begin(115200);
   uint16_t ticks;
   for (ticks = 1000; !Serial && (ticks > 0); ticks--) delay(10); // Serial, if present, takes some time to connect
@@ -810,7 +807,7 @@ void lever_check()  // Moving the gear lever to the top switches the resistance/
 
 void update_resistance()
 {
-  /* In-code oversampling
+  /* In-code oversampling - superceded by oversampling in the nRF52 library
   float rx = analogRead(RESISTANCE_PIN);
   for (int ir = 0; ir < 2; ir++) 
   {
@@ -821,11 +818,12 @@ void update_resistance()
   */
   raw_resistance = analogRead(RESISTANCE_PIN);  // ADC set to oversample
   resistance = max((raw_resistance - res_offset) * res_factor, 0);
-  resistance_sq = resistance * resistance;
+  inst_gear = gear_lookup(resistance);
+  //resistance_sq = resistance * resistance;
   uint8_t int_resistance = round(resistance);
   if (prev_resistance != int_resistance) {
     lever_check();
-    inst_gear = max(floor(GC + GB * resistance + GA * resistance_sq), 1) ;
+    //inst_gear = max(floor(GC + GB * resistance + GA * resistance_sq), 1) ;
     need_display_update = true;
     prev_resistance = int_resistance;
     DEBUG("Raw resistance ", "")
@@ -1053,7 +1051,8 @@ void loop()
   // Other things happen at the default tick interval
   if ((ticker % DEFAULT_TICKS) == 0) {
     process_crank_event();
-    float inst_power = max((PC1 + PB1 * resistance + PA1 * resistance_sq) * ( PC2 + PB2 * cadence + PA2 * cadence * cadence), 0);
+    float inst_power = max(sinterp(gears, power90, slopes, inst_gear, resistance) * ( PC2 + PB2 * cadence + PA2 * cadence * cadence), 0);
+    //float inst_power = max((PC1 + PB1 * resistance + PA1 * resistance_sq) * ( PC2 + PB2 * cadence + PA2 * cadence * cadence), 0);
     cadence = inst_cadence;
     //cadence = (cadence + inst_cadence) / 2;
     power = inst_power;
