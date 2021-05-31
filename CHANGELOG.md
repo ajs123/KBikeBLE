@@ -31,3 +31,4 @@
   - Table lookup instead of quadratic fit for gear determination
     - Using more evenly spaced gears than Keiser's originals. power_gear_tables.h has the Keiser originals.
   - Table interpolation instead of polynomial fits for power determination
+  - Simplified crank callback

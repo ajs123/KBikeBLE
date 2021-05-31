@@ -117,6 +117,7 @@ bool suspended;                  // Set to true when suspending the main loop
 
 uint8_t batt_pct;                 // Battery percentage charge
 
+volatile float inst_cadence = 0;  // Cadence calculated in the crank ISR
 volatile uint16_t crank_count = 0;      // Cumulative crank rotations - set by the crank sensor ISR, reported by CPS and used to determine cadence
 volatile uint32_t crank_event_time = 0; // Set to the most recent crank event time by the crank sensor ISR [ms]
 volatile uint32_t last_change_time;     // Used in the crank sensor ISR for sensor debounce [ms]. Initialized to millis() in Setup().
@@ -616,7 +617,7 @@ void format_power_data(void)
   //uint16_t et = ((crank_event_time & 0xFFFF) * 1024 / 1000) & 0xFFFF ; // uint32 millisec to uint16 1024ths
 
   power_data.words[1] = round(power);
-  noInterrupts();
+  noInterrupts();  // crank_count and crank_ticks are set in the crank ISR
   power_data.words[2] = crank_count;
   power_data.words[3] = crank_ticks;
   interrupts();
@@ -624,18 +625,21 @@ void format_power_data(void)
 }
 
 /*********************************************************************************
+  --- OLD ---
   ISR for crank sensor events. Triggerd on any change.
   To keep this short, it simply identifies a crank event as sensor active (0) when it's been inactive (1)
   for at least MIN_INACTIVE ms. Sets the new_crank_event flag, increments the crank event count, and records the crank_event_time.
   The main loop handles calculating the cadence, formatting of crank/cadence data and doing BLE notify.
-**********************************************************************************/
+**********************************************************************************
 
 uint8_t prev_crank_state = 0b10;
+uint32_t last_event_time = 0;
 const uint32_t MIN_INACTIVE = 100; // milliseconds
 
 void crank_callback()
 {
   uint32_t now = millis();
+  uint32_t dt;
   uint8_t state = prev_crank_state | digitalRead(CRANK_PIN);  // Yields a combined state between 0b00 and 0b11
   
   #ifdef POWERSAVE
@@ -644,18 +648,19 @@ void crank_callback()
 
   switch (state) {
     case 0b00 :   // Was low (active) and still low - spurious/noise.
-      prev_crank_state = 0b00;
+      //prev_crank_state = 0b00;
       break;
     case 0b01 :   // Was low (active) and now high - nothing to do except note the event.
       prev_crank_state = 0b10;  // previous is current shifted left
       break;
     case 0b10 :   // Was high (inactive) and now low (active) - depends upon whether inactive long enough.
-      if ((now - last_change_time) > MIN_INACTIVE) {  // True crank sensor leading edge.
-        new_crank_event = true;  // This tells the main loop that there is new crank data
+      dt = now - crank_event_time; // ms since last true leading edge
+      if (dt > MIN_INACTIVE) {     // True crank sensor leading edge.
         crank_count++;           // Accumulated crank rotations - used by Cycling Power Measurement and by the main loop to get cadence
-        crank_ticks += min((now - crank_event_time) * 1024 / 1000, 0xFFFF); // Crank event clock in 1/1024 sec ticks - used by Cycling Power Measurement
-        // If the crank has been still for > 2^16 ticks, just add 2^16 ticks
+        crank_ticks += min(dt * 1024 / 1000, 0xFFFF); // Crank event clock in 1/1024 sec ticks - used by Cycling Power Measurement
+        new_crank_event = true;    // This tells the main loop that there is new crank data
         crank_event_time = now;
+        inst_cadence = 60000 / (crank_event_time - prior_event_time);
       }
       prev_crank_state = 0b00;
       break;
@@ -663,6 +668,32 @@ void crank_callback()
       break;
   }
   last_change_time = now;
+}
+*/
+
+/*********************************************************************************************
+  Simplified ISR for crank sensor events. Triggerd on the pin going low (switch closed).
+  As long as there's been sufficient quiet time, trust the hardware and call it a crank event.
+**********************************************************************************************/
+
+const uint32_t MIN_INACTIVE = 300; // milliseconds (corresponds to 200 rpm)
+
+void crank_callback()
+{
+  uint32_t now = millis();
+  uint32_t dt = now - crank_event_time;
+  
+  #ifdef POWERSAVE
+  if (suspended) resume();   
+  #endif
+
+  if (dt < MIN_INACTIVE) return;  
+
+  crank_count++;           // Accumulated crank rotations - used by Cycling Power Measurement and by the main loop to get cadence
+  crank_ticks += min(dt * 1024 / 1000, 0xFFFF); // Crank event clock in 1/1024 sec ticks - used by Cycling Power Measurement
+  new_crank_event = true;    // This tells the main loop that there is new crank data
+  crank_event_time = now;  // This is probably redundant now
+  inst_cadence = 60000 / dt;
 }
 
 /********************************************************************************
@@ -731,7 +762,9 @@ void setup()
 
   last_change_time = millis();
   pinMode(CRANK_PIN, INPUT_PULLUP);
-  attachInterrupt(digitalPinToInterrupt(CRANK_PIN), crank_callback, CHANGE);
+  attachInterrupt(digitalPinToInterrupt(CRANK_PIN), crank_callback, FALLING);
+  //attachInterrupt(digitalPinToInterrupt(CRANK_PIN), crank_callback_high, HIGH);
+  //attachInterrupt(digitalPinToInterrupt(CRANK_PIN), crank_callback_low, LOW);
 
   // Apply voltage to the resistance pot
   pinMode(RESISTANCE_TOP, OUTPUT);
@@ -788,7 +821,6 @@ void resume()
 #define DEFAULT_TICKS 2   // Default
 
 uint8_t ticker = 0;       // Ticker inits to zero, also is reset under certain circumstances
-float inst_cadence = 0;
 uint16_t last_crank_count = 0;
 uint8_t crank_still_timer = 3; // Number of updates with no crank event to call the cadence zero
 uint16_t stop_time;
@@ -859,12 +891,12 @@ void process_crank_event()
     restartBLE();
 
     // Process the crank event: Calculate cadence and clear the event flag
-    noInterrupts(); // crank_count and crank_event_time mustn't change
+//    noInterrupts(); // crank_count and crank_event_time mustn't change
     new_crank_event = false;
-    inst_cadence = (crank_count - last_crank_count) * 60000 / (crank_event_time - prior_event_time);
-    last_crank_count = crank_count;
-    prior_event_time = crank_event_time;
-    interrupts();
+//    inst_cadence = (crank_count - last_crank_count) * 60000 / (crank_event_time - prior_event_time);
+//    last_crank_count = crank_count;
+//    prior_event_time = crank_event_time;
+//    interrupts();
     crank_still_timer = 0b100;
   }
   else
