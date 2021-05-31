@@ -32,3 +32,4 @@
     - Using more evenly spaced gears than Keiser's originals. power_gear_tables.h has the Keiser originals.
   - Table interpolation instead of polynomial fits for power determination
   - Simplified crank callback
+  - Wakeup after display has been off forces immediate battery check

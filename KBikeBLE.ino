@@ -885,6 +885,7 @@ void process_crank_event()
       display.setPowerSave(0);
       display.setContrast(CONTRAST_FULL);
       display_state = 2;
+      ticker = BATT_TICKS;  // Force battery check after the display has been off
     }
 
     // Be sure BLE is running
@@ -1077,18 +1078,13 @@ void loop()
   bleuart_check();
   #endif
 
-  // Stuff that happens on BATT_TICKS
-  if ((ticker % BATT_TICKS) == 0) {
-    update_battery();
-  }
-
   // Other things happen at the default tick interval
   if ((ticker % DEFAULT_TICKS) == 0) {
     
     process_crank_event();
     
-    //cadence = inst_cadence;
-    cadence = (cadence + inst_cadence) / 2; //TEMPORARY UNTIL WE FIND MISSED EVENT BUG!
+    cadence = inst_cadence;
+    //cadence = (cadence + inst_cadence) / 2; //TEMPORARY UNTIL WE FIND MISSED EVENT BUG!
     
     float inst_power = max(sinterp(gears, power90, slopes, inst_gear, resistance) * ( PC2 + PB2 * cadence + PA2 * cadence * cadence), 0);
     //float inst_power = max((PC1 + PB1 * resistance + PA1 * resistance_sq) * ( PC2 + PB2 * cadence + PA2 * cadence * cadence), 0);
@@ -1099,6 +1095,11 @@ void loop()
     updateBLE();
   }
 
+  // Stuff that happens on BATT_TICKS
+  if ((ticker % BATT_TICKS) == 0) {
+    update_battery();
+  }
+
   // Final stuff that happens, as needed, on every tick
   if (need_display_update && (display_state > 0)) display_numbers();  // Update the display
 
@@ -1106,7 +1107,7 @@ void loop()
   #ifdef POWERSAVE
   if (suspended) 
   {
-    waitForEvent();  // This returns immediately if there's been an interrupt since the last call
+    waitForEvent();  // This returns immediately since there's been an interrupt since the last call
     waitForEvent();
   }
   #endif
