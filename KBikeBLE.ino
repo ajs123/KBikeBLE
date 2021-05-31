@@ -672,8 +672,9 @@ void crank_callback()
 */
 
 /*********************************************************************************************
-  Simplified ISR for crank sensor events. Triggerd on the pin going low (switch closed).
+  Simplified ISR for crank sensor events. Triggerd on the pin tranisitioning low (switch closure).
   As long as there's been sufficient quiet time, trust the hardware and call it a crank event.
+  Interrupts occurring closer together than MIN_ACTIVE are quickly dismissed.
 **********************************************************************************************/
 
 const uint32_t MIN_INACTIVE = 300; // milliseconds (corresponds to 200 rpm)
@@ -683,17 +684,19 @@ void crank_callback()
   uint32_t now = millis();
   uint32_t dt = now - crank_event_time;
   
+  if (dt < MIN_INACTIVE) return;  
+
   #ifdef POWERSAVE
   if (suspended) resume();   
   #endif
 
-  if (dt < MIN_INACTIVE) return;  
+  // The following are needed for the Cycling Power Measurement characteristic
+  crank_count++;                                 // Accumulated crank rotationst
+  crank_ticks += min(dt * 1024 / 1000, 0xFFFF);  // Crank event clock in 1/1024 sec ticks
 
-  crank_count++;           // Accumulated crank rotations - used by Cycling Power Measurement and by the main loop to get cadence
-  crank_ticks += min(dt * 1024 / 1000, 0xFFFF); // Crank event clock in 1/1024 sec ticks - used by Cycling Power Measurement
-  new_crank_event = true;    // This tells the main loop that there is new crank data
-  crank_event_time = now;  // This is probably redundant now
-  inst_cadence = 60000 / dt;
+  crank_event_time = now;
+  new_crank_event = true;     // Tell the main loop that there is new crank data
+  inst_cadence = 60000 / dt;  // This used to be done in the main loop
 }
 
 /********************************************************************************
@@ -872,33 +875,32 @@ void update_battery()
 
 void process_crank_event()
 {
-  // On a new crank event, calculate cadence and set flags
+  // On a new crank event (flag set by the crank event ISR), update 
   if (new_crank_event)
   {
+    stop_time = 0;                  // Hold off power saving timeout
 
-    // Prevent power saving stuff
-    stop_time = 0;
-
-    // Wake the display
-    if (display_state < 2)
+    if (display_state < 2)          // Be sure the display is on
     {
       display.setPowerSave(0);
       display.setContrast(CONTRAST_FULL);
       display_state = 2;
-      ticker = BATT_TICKS;  // Force battery check after the display has been off
+      ticker = BATT_TICKS;          // Force battery check after the display has been off
     }
 
-    // Be sure BLE is running
-    restartBLE();
+    crank_still_timer = 0b100;     // Reset the shift register used to detect no pedaling
+                                   // 3 shifts = 3 seconds without an event indicates no pedaling
+                                   
+    restartBLE();                  // Be sure BLE is running
 
-    // Process the crank event: Calculate cadence and clear the event flag
+    new_crank_event = false;     // Reset the flag
+
+    // Calculate cadence and clear the event flag
 //    noInterrupts(); // crank_count and crank_event_time mustn't change
-    new_crank_event = false;
 //    inst_cadence = (crank_count - last_crank_count) * 60000 / (crank_event_time - prior_event_time);
 //    last_crank_count = crank_count;
 //    prior_event_time = crank_event_time;
 //    interrupts();
-    crank_still_timer = 0b100;
   }
   else
   {
