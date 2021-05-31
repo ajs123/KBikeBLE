@@ -60,8 +60,6 @@
 #define RESISTANCE_TOP 10
 #define BATTERY_PIN    A6
 
-
-
 // The battery is measured through a divider providing half the voltage
 #define VBAT_MV_PER_LSB 7.03125  // 3600 mV ref / 1024 steps * 2.0 divider ratio
 
@@ -124,7 +122,7 @@ volatile uint32_t crank_event_time = 0; // Set to the most recent crank event ti
 volatile bool new_crank_event = false;  // Set by the crank sensor ISR; cleared by the main loop
 volatile uint16_t crank_ticks;          // 1/1024 sec per tick crank clock, for Cycling Power Measurement [ticks]
 
-uint32_t prior_event_time = 0;          // Used in the main loop to hold the time of the last reported crank event [ms]
+//uint32_t prior_event_time = 0;          // Used in the main loop to hold the time of the last reported crank event [ms]
 
 bool ftm_active = true;          // Once a client connects with either service, we stop updating the other.
 bool cp_active = true;
@@ -250,7 +248,7 @@ float readVBAT(void)   // Compacted from the Adafruit example
 
 int gear_lookup(float resistance) 
 {
-    int ix = inst_gear;                       // The gear points to the top bound
+    int ix = inst_gear;                                               // The gear points to the top bound
     
     if (resistance >= gears[ix]) {                                    // If above the top bound, index up
         if (ix >= tablen) return tablen;                              // But not if already at the top
