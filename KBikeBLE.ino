@@ -120,7 +120,7 @@ uint8_t batt_pct;                 // Battery percentage charge
 volatile float inst_cadence = 0;  // Cadence calculated in the crank ISR
 volatile uint16_t crank_count = 0;      // Cumulative crank rotations - set by the crank sensor ISR, reported by CPS and used to determine cadence
 volatile uint32_t crank_event_time = 0; // Set to the most recent crank event time by the crank sensor ISR [ms]
-volatile uint32_t last_change_time;     // Used in the crank sensor ISR for sensor debounce [ms]. Initialized to millis() in Setup().
+//volatile uint32_t last_change_time;     // Used in the crank sensor ISR for sensor debounce [ms]. Initialized to millis() in Setup().
 volatile bool new_crank_event = false;  // Set by the crank sensor ISR; cleared by the main loop
 volatile uint16_t crank_ticks;          // 1/1024 sec per tick crank clock, for Cycling Power Measurement [ticks]
 
@@ -763,11 +763,12 @@ void setup()
 
   //Serial.println("Advertising");
 
-  last_change_time = millis();
+  // Crank sensing. A falling edge (switch closure) triggers the interrupt. This counts as a crank event (rotation) 
+  // if it's been long enough since the last event. The rider could conceivably initiate faux rotations by holding
+  // the crank right at a certain spot, but there are similar risks with any scheme.
+  crank_event_time = millis();
   pinMode(CRANK_PIN, INPUT_PULLUP);
   attachInterrupt(digitalPinToInterrupt(CRANK_PIN), crank_callback, FALLING);
-  //attachInterrupt(digitalPinToInterrupt(CRANK_PIN), crank_callback_high, HIGH);
-  //attachInterrupt(digitalPinToInterrupt(CRANK_PIN), crank_callback_low, LOW);
 
   // Apply voltage to the resistance pot
   pinMode(RESISTANCE_TOP, OUTPUT);
@@ -1067,7 +1068,7 @@ void loop()
 {
   // Do what's needed based on the ticker value
 
-  need_display_update = false;      // Indicates whether the display needs to be redrawn
+  need_display_update = false;      // Various tasks can indicate that the display needs to be redrawn
 
   // Stuff that happens on every tick
   update_resistance();
@@ -1080,7 +1081,7 @@ void loop()
   bleuart_check();
   #endif
 
-  // Other things happen at the default tick interval
+  // Things happen at the default tick interval
   if ((ticker % DEFAULT_TICKS) == 0) {
     
     process_crank_event();
@@ -1103,9 +1104,9 @@ void loop()
   }
 
   // Final stuff that happens, as needed, on every tick
-  if (need_display_update && (display_state > 0)) display_numbers();  // Update the display
+  if (need_display_update && (display_state > 0)) display_numbers();
 
-  // Wake up at intervals
+  // If suspended for power saving, wait here. The CPU should stop in a low power state, then continue after a crank interrupt.
   #ifdef POWERSAVE
   if (suspended) 
   {
