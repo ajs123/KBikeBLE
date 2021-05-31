@@ -611,13 +611,15 @@ void format_power_data(void)
   //   B4-5     = Crank revolutions   - UINT16 - [unitless]
   //   B6-7     = Last crank event time - UINT16 - s with 1/1024 resolution (1024 counts/sec)
 
-  uint16_t power_int = round(power);
-  uint16_t revs = crank_count;
+  //uint16_t power_int = round(power);
+  //uint16_t revs = crank_count;
   //uint16_t et = ((crank_event_time & 0xFFFF) * 1024 / 1000) & 0xFFFF ; // uint32 millisec to uint16 1024ths
 
-  power_data.words[1] = power_int;
-  power_data.words[2] = revs;
+  power_data.words[1] = round(power);
+  noInterrupts();
+  power_data.words[2] = crank_count;
   power_data.words[3] = crank_ticks;
+  interrupts();
 
 }
 
@@ -652,7 +654,7 @@ void crank_callback()
         new_crank_event = true;  // This tells the main loop that there is new crank data
         crank_count++;           // Accumulated crank rotations - used by Cycling Power Measurement and by the main loop to get cadence
         crank_ticks += min((now - crank_event_time) * 1024 / 1000, 0xFFFF); // Crank event clock in 1/1024 sec ticks - used by Cycling Power Measurement
-        // If the crank has been still for > 2^16 ms, just add 2^16 ms
+        // If the crank has been still for > 2^16 ticks, just add 2^16 ticks
         crank_event_time = now;
       }
       prev_crank_state = 0b00;
