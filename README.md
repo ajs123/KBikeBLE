@@ -23,7 +23,7 @@ The M3 computer connects to a sensor/pickup board near the resistance magnet ass
 * Red    - Wiper of the pot
 * Yellow - Ground - other end of the pot, and of the crank switch
 
-Any replacement RJ9 cord provides access, or you could tap into the Keiser computer connector at the handlebar end. Retaining the ability to use the Keiser computer is recommended. In the absence of power pedals, calibration is done by matching the Keiser power estimates.
+Any replacement RJ9 cord provides access, or you could tap into the Keiser computer connector at the handlebar end. Retaining the ability to use the Keiser computer is recommended, as it can be helpful in calibration.
 
 KBikeBLE uses a digital output to apply voltage to the pot (Black wire) and reads the voltage at the wiper. Disabling resistance measurements and blanking the display provides good (days) battery life. The original Keiser computer appears to operate differently, perhaps for futher power savings. The ability to leave both connected at the same time is TBD.
 
@@ -35,11 +35,11 @@ This code is for an Adafruit nrf52840 Express microcontroller and a generic 128x
 * U8G2 display https://github.com/olikraus/u8g2
 
 ### Calibration
-Calibrations were obtained by comparison with a Keiser computer, V4.06 software.
+Calibrations were obtained by comparison with a Keiser computer, V4.06 software. A published Keiser chart showing power vs. resistance magnet position, along with data from the Keiser computer on power vs. speed at fixed resistance, are used to provide the power estimates. Comparison with a calibrated Keiser computer or Keiser's calibration tool (documentation forthcoming) can be used to calibrate to an individual bike.
 
-See https://user-images.githubusercontent.com/68538658/113517760-e75ac880-9579-11eb-968e-854193421594.jpeg for info from Keiser on gear number vs. magnet assembly position, as well as power vs. magnet position at 90 RPM. Calibration replicates the scale on that figure, with 0 to 100% representing the full extent of the X axis. Gear vs. position is represented by a quadratic, which provides more evenly spaced gears than does the Keiser computer (users may prefer one over the other).
+See https://user-images.githubusercontent.com/68538658/113517760-e75ac880-9579-11eb-968e-854193421594.jpeg for info from Keiser on gear number vs. magnet assembly position, as well as power vs. magnet position at 90 RPM. Calibration replicates the scale on that figure, with 0 to 100% representing the full extent of the X axis. The Gear display can be the unevenly spaced gears shown on the figure, or a more uniform but very similar set. Users may prefer one over the other, or prefer the simple 0-100% display that's provided as well.
 
-Cadence (RPM) is incorporated into the power estimate by comparison with the power displayed by the Keiser V4.06 software. See the comments in the code for details.
+See the comments in the code for details.
 
 ## Inspiration and thanks
 https://github.com/Tschucker/ArduinoBLE-Cycle-Power-Service
