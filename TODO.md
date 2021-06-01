@@ -1,7 +1,9 @@
 ## TODO
 - Verify that simplified crank callback has eliminated missed events
 - Fix: If displaying gears, display will update on half-second intervals only if the integer resistance changes
-- In power save, verify waitForEvent() behavior (need or not for current two calls)
+- Continued work on power saving
+  - Verify waitForEvent() behavior (need or not for current two calls)
+  - Consider lengthening delay() (if an improvement over waitForEvent(), this would indicate other events happening)
 - In update_resistance(), correct the logic regarding when the gear needs to be determined
 - Consider using a different reference, e.g., Vdd ref for the pot to maintain cal near battery end of charge
 - Consider closer look at what needs to be recalculated under different circumstances - e.g., no need to re-do resistance calc if the value hasn't changed at all
