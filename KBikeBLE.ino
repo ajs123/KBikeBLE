@@ -680,6 +680,7 @@ const uint32_t MIN_INACTIVE = 300; // milliseconds (corresponds to 200 rpm)
 void crank_callback()
 {
   uint32_t now = millis();
+  //uint32_t now = xTaskGetTickCountFromISR();    // FreeRTOS gives time in 1/1024ths sec, whcih is what's needed for CPM
   uint32_t dt = now - crank_event_time;
   
   if (dt < MIN_INACTIVE) return;  
@@ -691,10 +692,12 @@ void crank_callback()
   // The following are needed for the Cycling Power Measurement characteristic
   crank_count++;                                 // Accumulated crank rotationst
   crank_ticks += min(dt * 1024 / 1000, 0xFFFF);  // Crank event clock in 1/1024 sec ticks
+  //crank_tickes += ( dt & 0xFFFF );               // dt is in FreeRTOS ticks, which are 1/1024 sec as needed for CPM
 
   crank_event_time = now;
   new_crank_event = true;     // Tell the main loop that there is new crank data
   inst_cadence = 60000 / dt;  // This used to be done in the main loop
+  //inst_cadence = 61440 / dt;  // RPM = 60 / ( dt * 1000/1024 )
 }
 
 /********************************************************************************

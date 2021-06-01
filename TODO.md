@@ -1,6 +1,7 @@
 ## TODO
 - Verify that simplified crank callback has eliminated missed events
 - Fix: If displaying gears, display will update on half-second intervals only if the integer resistance changes
+- Check on use of FreeRTOS 1/1024 second ticks to avoid 1024/1000 scaling of the CPM clock
 - Continued work on power saving
   - Verify waitForEvent() behavior (need or not for current two calls)
   - Consider lengthening delay() (if an improvement over waitForEvent(), this would indicate other events happening)
