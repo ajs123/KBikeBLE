@@ -1135,3 +1135,10 @@ void loop()
   ticker++;
   delay(TICK_INTERVAL);
 }
+
+/* The idle task is another documented approach to power saving. It is NOT clear that this should be necessary when using tickless idle.
+void vApplicationIdleHook( void )
+{
+  waitForEvent();
+}
+*/
