@@ -781,6 +781,8 @@ void setup()
 
   // Set up the analog input for resistance measurement
   ADC_setup();
+
+  //sd_power_mode_set(NRF_POWER_MODE_LOWPWR);  see https://forums.adafruit.com/viewtopic.php?f=24&t=128823&sid=4f70bc48daaf47bd752bf8d108291049&start=75
 }
 
 /*********************************************************************************************
@@ -1065,13 +1067,36 @@ void bleuart_check(void)
 }
 #endif
 
+void LED_flash(int times, int ms)
+{
+  for (int i = 0; i < times; i++) {
+    digitalWrite(LED_RED, 1);
+    delay(ms);
+    digitalWrite(LED_RED, 0);
+    if (i < times-1) delay(ms);
+  }
+}
+
 void loop()
 {
-  // Do what's needed based on the ticker value
+  // If suspended for power saving, wait here. The CPU should stop in a low power state, then continue after a crank interrupt.
+  #ifdef POWERSAVE
+  if (suspended) 
+  {
+    //LED_flash(2, 1000); // Show that we're here with 2 one-second flashes
+    waitForEvent();  // This returns immediately since there's been an interrupt since the last call
+    waitForEvent();  // Appears also to return due to something else such as FreeRTOS tick interrupt
+    delay(5000);     // At least slow the loop down!
+    //LED_flash(3, 1000); // Show that we're back with 3 one-second flashes
+    return;
+  }
+  #endif
+
+  // Otherwise, do what's needed based on the ticker value
 
   need_display_update = false;      // Various tasks can indicate that the display needs to be redrawn
 
-  // Stuff that happens on every tick
+  // Things that happens on every tick
   update_resistance();
 
   #ifdef SERIAL
@@ -1099,22 +1124,14 @@ void loop()
     updateBLE();
   }
 
-  // Stuff that happens on BATT_TICKS
+  // Things that happen on BATT_TICKS
   if ((ticker % BATT_TICKS) == 0) {
     update_battery();
   }
 
-  // Final stuff that happens, as needed, on every tick
+  // Final things, as needed, on every tick
   if (need_display_update && (display_state > 0)) display_numbers();
 
-  // If suspended for power saving, wait here. The CPU should stop in a low power state, then continue after a crank interrupt.
-  #ifdef POWERSAVE
-  if (suspended) 
-  {
-    waitForEvent();  // This returns immediately since there's been an interrupt since the last call
-    waitForEvent();
-  }
-  #endif
   ticker++;
   delay(TICK_INTERVAL);
 }
