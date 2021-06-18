@@ -1,5 +1,5 @@
  /* Bluetooth console for Keiser M3 **********************************************************************************************
-   V0.12
+   V0.13
 ********************************************************************************************************************************/
 
 /*********************************************************************
@@ -27,12 +27,18 @@
   #include <Wire.h>
   #endif
 
-#define POWERSAVE        // Incorporate power-saving shutdown
-//#define SERIAL           // Incorporate serial functions. Will attempt serial connection at startup.
-#define BLEUART          // Activates serial over BLE
-//#define DEBUG            // Activates debug code. Requires SERIAL for any serial console bits.
+#include "power_gear_tables.h"
+#include "calibration.h"
 
-#if defined(SERIAL) && defined(DEBUG)
+//#define QUICKTIMEOUT     // Quick timeout options for testing power saving functions
+
+#define POWERSAVE 1      // Incorporate power-saving shutdown. 1 = use systemOff() function, otherwise just long delay()
+
+//#define USE_SERIAL           // Incorporate serial functions. Will attempt serial connection at startup.
+#define BLEUART          // Activates serial over BLE
+//#define DEBUG            // Activates debug code. Requires USE_SERIAL for any serial console bits.
+
+#if defined(USE_SERIAL) && defined(DEBUG)
    #define DEBUG(x,l) Serial.print(x); Serial.print(l);
 #else
    #define DEBUG(x,l)
@@ -57,39 +63,6 @@
 #define RESISTANCE_TOP 10
 #define BATTERY_PIN    A6
 
-/********************************************************************
-    Calibration data
-       Here, the cal is a direct fit of power vs. resistance setting @ constant speed
-                    times a fit of power vs. speed at constant resistance setting
-       Power = () power vs. R @ 60 ) * ( power vs. C @ Keiser gears 10, 12, 14 and 16 )
-            where R = normalized resistance (0-100 over full Keiser range)
-                  C = cadence (RPM)
-
-       Keiser gears - data taken at the bottom of the range for each gear,
-                      so floor() should be the gear displayed
-  ********************************************************************/
-
-// Normalized resistance (0-100 scale) is ( ADC reading - OFFSET ) * FACTOR
-// Normalized resistance will exceed 100% because there is magnet assembly excursion beyond the top of the range,
-//    prior to the mechanical brake contacting the flywheel, and at the bottom of the range as well.
-// These are default cals, used if the filesystem has nothing
-#define RESISTANCE_OFFSET 154.6       // From Raw ADC - Keiser graph regression
-#define RESISTANCE_FACTOR 0.2182
-
-/// These all use y = A*x^2 + B*x + C
-#define PC1 29.3      // Power_ref vs. R @ reference cadence (Ref cadence is 90 RPM)
-#define PB1 -1.97     // This fit is done for gears 2 to 22.
-#define PA1 0.135     // Covering the full range requires a 4th order polynomial or
-                      // another, e.g., table lookup, approach.
-
-#define PC2 -2.70E-03 // Power/Power_ref vs. RPM
-#define PB2 6.79E-03
-#define PA2 4.75E-05
-
-#define GC -2.97      // Keiser gear vs. normalized resistance
-#define GB 0.516
-#define GA -2.35E-03
-
 // The battery is measured through a divider providing half the voltage
 #define VBAT_MV_PER_LSB 7.03125  // 3600 mV ref / 1024 steps * 2.0 divider ratio
 
@@ -97,10 +70,18 @@
    Options
 
  ********************************************************************************/
+#ifdef QUICKTIMEOUT
+#define DIM_TIME 20//60         // Duration (sec) of no pedaling to dim display (if supported)
+#define BLANK_TIME 30//180      // Duration (sec) to blank display
+#define BLE_OFF_TIME 30//900    // Duration (sec) to turn off Bluetooth to save power. Will disconnect from Central after this time.
+#define POWERDOWN_TIME 40//1200 // Duration (sec) to suspend the main loop pending a crank interrupt
+#else
 #define DIM_TIME 60         // Duration (sec) of no pedaling to dim display (if supported)
 #define BLANK_TIME 180      // Duration (sec) to blank display
 #define BLE_OFF_TIME 900    // Duration (sec) to turn off Bluetooth to save power. Will disconnect from Central after this time.
 #define POWERDOWN_TIME 1200 // Duration (sec) to suspend the main loop pending a crank interrupt
+#endif
+//*/
 #define CONTRAST_FULL 255
 #define CONTRAST_DIM 0
 
@@ -138,20 +119,21 @@ float res_offset;                // Cal fators - raw_resistance to normalized re
 float res_factor;
 bool serial_present = false;
 float resistance_sq;             // Set when checking resistance, used in both gear and power calcs
-float inst_gear;                 // Keiser gear number, determined by cal to the Keiser computer
-#ifdef POWERSAVE
+uint8_t inst_gear;               // Gear number: Index into power tables and, optionally, displayed
+#if defined(POWERSAVE) && (POWERSAVE != 1)
 bool suspended;                  // Set to true when suspending the main loop
 #endif
 
 uint8_t batt_pct;                 // Battery percentage charge
 
+volatile float inst_cadence = 0;  // Cadence calculated in the crank ISR
 volatile uint16_t crank_count = 0;      // Cumulative crank rotations - set by the crank sensor ISR, reported by CPS and used to determine cadence
 volatile uint32_t crank_event_time = 0; // Set to the most recent crank event time by the crank sensor ISR [ms]
-volatile uint32_t last_change_time;     // Used in the crank sensor ISR for sensor debounce [ms]. Initialized to millis() in Setup().
+//volatile uint32_t last_change_time;     // Used in the crank sensor ISR for sensor debounce [ms]. Initialized to millis() in Setup().
 volatile bool new_crank_event = false;  // Set by the crank sensor ISR; cleared by the main loop
 volatile uint16_t crank_ticks;          // 1/1024 sec per tick crank clock, for Cycling Power Measurement [ticks]
 
-uint32_t prior_event_time = 0;          // Used in the main loop to hold the time of the last reported crank event [ms]
+//uint32_t prior_event_time = 0;          // Used in the main loop to hold the time of the last reported crank event [ms]
 
 bool ftm_active = true;          // Once a client connects with either service, we stop updating the other.
 bool cp_active = true;
@@ -230,7 +212,7 @@ void display_numbers()
   display.setFont(u8g2_font_helvB24_tn);
   right_just((int) round(cadence), 10, 43, 18);
   if (gear_display) {
-    right_just((int) round(inst_gear), 10, 85, 18);
+    right_just(inst_gear, 10, 85, 18);
   } else {
     right_just((int) round(resistance), 10, 85, 18);
   }
@@ -248,7 +230,7 @@ void ADC_setup(void)               // Set up the ADC for ongoing resistance meas
 {
   analogReference(AR_INTERNAL);   // 3.6V
   analogOversampling(ANALOG_OVERSAMPLE);
-  analogReadResolution(10);       // 10 bits for better gear deliniation and for battery measurement
+  analogReadResolution(10);       // 10 bits for better gear delineation and for battery measurement
   delay(1);                       // Let the ADC settle before any measurements
 }
 
@@ -269,6 +251,31 @@ float readVBAT(void)   // Compacted from the Adafruit example
   if (mvolts < 3600)                                  //   Last 10% - linear from 3.3 - 3.6 V
     return (mvolts - 3300) * 0.03333;
   return min(10 + ((mvolts - 3600) * 0.15F ), 100);   //   10-100% - linear from 3.6 - 4.2 V
+}
+
+/*****************************************************************************************************
+ * Gear and power determination
+ *****************************************************************************************************/
+
+int gear_lookup(float resistance) 
+{
+    int ix = inst_gear;                                               // The gear points to the top bound
+    
+    if (resistance >= gears[ix]) {                                    // If above the top bound, index up
+        if (ix >= tablen) return tablen;                              // But not if already at the top
+            for ( ; (resistance > gears[++ix]) && (ix < tablen); );   // Index up until resistance <= top bound or at end of the table 
+        return ix;
+    } else {
+        for ( ; (resistance < gears[--ix]) && (ix > 0); );            // Index down until resistance >= bottom bound or at end of table
+        return ++ix;                                                  // Decremented index is pointing to the bottom bound, so add 1
+    } 
+}
+
+float sinterp(const float x_ref[], const float y_ref[], const float slopes[], int index, float x)
+{
+    float x1 = x_ref[index - 1];           // Index points to the top bound
+    float y1 = y_ref[index - 1]; 
+    return y1 + (x - x1) * slopes[index];  // Slope[index] is the slopes of the trailing interval
 }
 
 /*********************************************************************************
@@ -614,49 +621,53 @@ void format_power_data(void)
   //   B4-5     = Crank revolutions   - UINT16 - [unitless]
   //   B6-7     = Last crank event time - UINT16 - s with 1/1024 resolution (1024 counts/sec)
 
-  uint16_t power_int = round(power);
-  uint16_t revs = crank_count;
+  //uint16_t power_int = round(power);
+  //uint16_t revs = crank_count;
   //uint16_t et = ((crank_event_time & 0xFFFF) * 1024 / 1000) & 0xFFFF ; // uint32 millisec to uint16 1024ths
 
-  power_data.words[1] = power_int;
-  power_data.words[2] = revs;
+  power_data.words[1] = round(power);
+  noInterrupts();  // crank_count and crank_ticks are set in the crank ISR
+  power_data.words[2] = crank_count;
   power_data.words[3] = crank_ticks;
+  interrupts();
 
 }
 
 /*********************************************************************************
+  --- OLD ---
   ISR for crank sensor events. Triggerd on any change.
   To keep this short, it simply identifies a crank event as sensor active (0) when it's been inactive (1)
   for at least MIN_INACTIVE ms. Sets the new_crank_event flag, increments the crank event count, and records the crank_event_time.
   The main loop handles calculating the cadence, formatting of crank/cadence data and doing BLE notify.
-**********************************************************************************/
+**********************************************************************************
 
 uint8_t prev_crank_state = 0b10;
+uint32_t last_event_time = 0;
 const uint32_t MIN_INACTIVE = 100; // milliseconds
 
 void crank_callback()
 {
   uint32_t now = millis();
+  uint32_t dt;
   uint8_t state = prev_crank_state | digitalRead(CRANK_PIN);  // Yields a combined state between 0b00 and 0b11
   
-  #ifdef POWERSAVE
   if (suspended) resume();   
-  #endif
 
   switch (state) {
     case 0b00 :   // Was low (active) and still low - spurious/noise.
-      prev_crank_state = 0b00;
+      //prev_crank_state = 0b00;
       break;
     case 0b01 :   // Was low (active) and now high - nothing to do except note the event.
       prev_crank_state = 0b10;  // previous is current shifted left
       break;
     case 0b10 :   // Was high (inactive) and now low (active) - depends upon whether inactive long enough.
-      if ((now - last_change_time) > MIN_INACTIVE) {  // True crank sensor leading edge.
-        new_crank_event = true;  // This tells the main loop that there is new crank data
+      dt = now - crank_event_time; // ms since last true leading edge
+      if (dt > MIN_INACTIVE) {     // True crank sensor leading edge.
         crank_count++;           // Accumulated crank rotations - used by Cycling Power Measurement and by the main loop to get cadence
-        crank_ticks += min((now - crank_event_time) * 1024 / 1000, 0xFFFF); // Crank event clock in 1/1024 sec ticks - used by Cycling Power Measurement
-        // If the crank has been still for > 2^16 ms, just add 2^16 ms
+        crank_ticks += min(dt * 1024 / 1000, 0xFFFF); // Crank event clock in 1/1024 sec ticks - used by Cycling Power Measurement
+        new_crank_event = true;    // This tells the main loop that there is new crank data
         crank_event_time = now;
+        inst_cadence = 60000 / (crank_event_time - prior_event_time);
       }
       prev_crank_state = 0b00;
       break;
@@ -664,6 +675,40 @@ void crank_callback()
       break;
   }
   last_change_time = now;
+}
+*/
+
+/*********************************************************************************************
+  Simplified ISR for crank sensor events. Triggerd on the pin tranisitioning low (switch closure).
+  As long as there's been more than MIN_INACTIVE time, trust the hardware and call it a crank event.
+  Interrupts occurring closer together than MIN_ACTIVE are quickly dismissed.
+**********************************************************************************************/
+
+const uint32_t MIN_INACTIVE = 300; // milliseconds (corresponds to 200 rpm)
+
+void crank_callback()
+{
+  uint32_t now = millis();
+  //uint32_t now = xTaskGetTickCountFromISR();    // By default, FreeRTOS gives time in 1/1024 sec, which is what's needed for CPM
+                                                  // This eliminates one divide, but depends upon use of the default interval
+  uint32_t dt = now - crank_event_time;
+  
+  if (dt < MIN_INACTIVE) return;  
+
+  #if defined(POWERSAVE) && (POWERSAVE != 1)
+  if (suspended) resume();   
+  #endif
+
+  // The following are needed for the Cycling Power Measurement characteristic
+  crank_count++;                                 // Accumulated crank rotationst
+  crank_ticks += min(dt * 1024 / 1000, 0xFFFF);  // Crank event clock in 1/1024 sec ticks
+  //crank_ticks += ( dt & 0xFFFF );              // dt is in FreeRTOS ticks, which are 1/1024 sec as needed for CPM
+  //crank_ticks = now & 0xFFFF;
+
+  crank_event_time = now;
+  new_crank_event = true;     // Tell the main loop that there is new crank data
+  inst_cadence = 60000 / dt;  // This used to be done in the main loop
+  //inst_cadence = 61440 / dt;  // RPM = 60 / ( dt * 1000/1024 )
 }
 
 /********************************************************************************
@@ -677,7 +722,7 @@ void init_cal()
 
 void setup()
 {
-#ifdef SERIAL
+#ifdef USE_SERIAL
   Serial.begin(115200);
   uint16_t ticks;
   for (ticks = 1000; !Serial && (ticks > 0); ticks--) delay(10); // Serial, if present, takes some time to connect
@@ -730,9 +775,12 @@ void setup()
 
   //Serial.println("Advertising");
 
-  last_change_time = millis();
+  // Crank sensing. A falling edge (switch closure) triggers the interrupt. This counts as a crank event (rotation) 
+  // if it's been long enough since the last event. The rider could conceivably initiate faux rotations by holding
+  // the crank right at a certain spot, but there are similar risks with any scheme.
+  crank_event_time = millis();
   pinMode(CRANK_PIN, INPUT_PULLUP);
-  attachInterrupt(digitalPinToInterrupt(CRANK_PIN), crank_callback, CHANGE);
+  attachInterrupt(digitalPinToInterrupt(CRANK_PIN), crank_callback, FALLING);
 
   // Apply voltage to the resistance pot
   pinMode(RESISTANCE_TOP, OUTPUT);
@@ -744,18 +792,79 @@ void setup()
 
   // Set up the analog input for resistance measurement
   ADC_setup();
+
+  //sd_power_mode_set(NRF_POWER_MODE_LOWPWR);  //see https://forums.adafruit.com/viewtopic.php?f=24&t=128823&sid=4f70bc48daaf47bd752bf8d108291049&start=75
 }
 
 /*********************************************************************************************
  * Suspend (power save) 
  *   - de-energizes the resistance sense pot
- *   - suspends the main loop
+ *   - If POWERSAVE == 1, powers the system down, with the crank switch configured as reset
+ *   - Otherwise, try :-) to minimize power used
+ * See the notes in each section
  *********************************************************************************************/
 #ifdef POWERSAVE
+#if (POWERSAVE == 1)
+/*
+Power down until reset. Reset is by a selected level (not edge) on the crank switch GPIO pin.
+We configure reset to occur when the crank switch changes to the opposite of its current state.
+
+Though the crank switch is usually open because the range of movement during which the magnet is
+nearby is small, it's possible for the pedals to be stopped with the switch closed. The stock
+systemOff() sets up a pullup if reset is to be active-low, or a pulldown if it's to be active-high.
+Here, with the non-GPIO side of the crank switch hard wired to ground, we're stuck with a pullup.
+Our copy of the stock systemOff() substitutes PULLUP for PULLDOWN when SENSE_HIGH is needed. 
+
+The compromise made is in battery usage: the closed switch with the 22K pullup consumes 0.15 mA
+continuously. Alternatives include (1) active control over the non-GPIO side of the switch, which
+would affect the resistance measurements; (2) AC coupling of the switch (parallel RC - would consume)
+less, but not zero, current; (3) a very weak external pullup.  
+*/
+void turnOff(uint32_t pin, uint8_t wake_logic)
+{
+//  for(int i=0; i<8; i++)
+//  {
+//    NRF_POWER->RAM[i].POWERCLR = 0x03UL;
+//  }
+
+  pin = g_ADigitalPinMap[pin];
+
+  if ( wake_logic )
+  {
+    //Original systemOff() uses NRF_GPIO_PIN_PULLDOWN here
+    nrf_gpio_cfg_sense_input(pin, NRF_GPIO_PIN_PULLUP, NRF_GPIO_PIN_SENSE_HIGH);
+  }else
+  {
+    nrf_gpio_cfg_sense_input(pin, NRF_GPIO_PIN_PULLUP, NRF_GPIO_PIN_SENSE_LOW);
+  }
+
+  uint8_t sd_en;
+  (void) sd_softdevice_is_enabled(&sd_en);
+
+  // Enter System OFF state
+  if ( sd_en )
+  {
+    sd_power_system_off();
+  }else
+  {
+    NRF_POWER->SYSTEMOFF = 1;
+  }
+}
+
 void suspend()
 {
   digitalWrite(RESISTANCE_TOP, LOW);   // De-energize the resistance pot
-  //suspendLoop();                     // Suspend the main loop(). resumeLoop() doesn't seem to work.        
+//  if (digitalRead(CRANK_PIN)) LED_flash(500, 1); else LED_flash(500, 3);
+  turnOff(CRANK_PIN, !digitalRead(CRANK_PIN)); 
+}
+#endif
+#else
+void suspend()
+{
+  digitalWrite(RESISTANCE_TOP, LOW);   // De-energize the resistance pot
+  //suspendLoop();                     // Suspend the main loop(). Bur resumeLoop() doesn't seem to work.      
+  //sd_softdevice_disable();           // May need to do this, then re-initialize BLE on restart
+  //sd_power_system_off();
   suspended = true;                    // Setting this causes waitForEvent() in the main loop.
 }
 
@@ -766,16 +875,17 @@ void resume()
   suspended = false;
 }
 #endif
+
 /**********************************************************************************************
    Main loop()
 
    We define these periodic tasks:
-     * Checking the resistance measurement. It helps for this to be updated 2/sec.
-     * Checking for crank event(s) and recalculate cadence and power. This could be totally
-       event-based, but here we're doing it once per second.
+     * Checking the resistance measurement. It helps the user for this to be updated 2/sec.
+     * Checking for crank event(s) that were handled by the crank ISR, recalculating power, 
+       and determine any need for power savings steps.
      * Updating BLE service data, if connected. Service specs call for this to be about 1/sec
      * Checking the battery. 1/min seems like enough.
-     * Updating the display: 1/sec unless the resistance has changed.
+     * Updating the display as needed.
 
    We use a little scheduler that calls each function at the appropriate times.
 
@@ -789,9 +899,8 @@ void resume()
 #define DEFAULT_TICKS 2   // Default
 
 uint8_t ticker = 0;       // Ticker inits to zero, also is reset under certain circumstances
-float inst_cadence = 0;
 uint16_t last_crank_count = 0;
-uint8_t crank_still_timer = 3; // Number of updates with no crank event to call the cadence zero
+uint8_t crank_still_timer = 3; // No pedaling is defined as this many crank checks with no event
 uint16_t stop_time;
 
 uint8_t prev_resistance = 0;
@@ -810,22 +919,14 @@ void lever_check()  // Moving the gear lever to the top switches the resistance/
 
 void update_resistance()
 {
-  /* In-code oversampling
-  float rx = analogRead(RESISTANCE_PIN);
-  for (int ir = 0; ir < 2; ir++) 
-  {
-    delay(10);
-    rx += analogRead(RESISTANCE_PIN);
-  }
-  raw_resistance = rx/3;
-  */
   raw_resistance = analogRead(RESISTANCE_PIN);  // ADC set to oversample
   resistance = max((raw_resistance - res_offset) * res_factor, 0);
-  resistance_sq = resistance * resistance;
+  inst_gear = gear_lookup(resistance);
+  //resistance_sq = resistance * resistance;
   uint8_t int_resistance = round(resistance);
   if (prev_resistance != int_resistance) {
     lever_check();
-    inst_gear = max(floor(GC + GB * resistance + GA * resistance_sq), 1) ;
+    //inst_gear = max(floor(GC + GB * resistance + GA * resistance_sq), 1) ;
     need_display_update = true;
     prev_resistance = int_resistance;
     DEBUG("Raw resistance ", "")
@@ -840,32 +941,32 @@ void update_battery()
 
 void process_crank_event()
 {
-  // On a new crank event, calculate cadence and set flags
+  // On a new crank event (flag set by the crank event ISR), update 
   if (new_crank_event)
   {
+    stop_time = 0;                  // Hold off power saving timeout
 
-    // Prevent power saving stuff
-    stop_time = 0;
-
-    // Wake the display
-    if (display_state < 2)
+    if (display_state < 2)          // Be sure the display is on
     {
       display.setPowerSave(0);
       display.setContrast(CONTRAST_FULL);
       display_state = 2;
+      ticker = BATT_TICKS;          // Force battery check after the display has been off
     }
 
-    // Be sure BLE is running
-    restartBLE();
+    crank_still_timer = 0b100;     // Reset the shift register used to detect no pedaling
+                                   // 3 shifts = 3 seconds without an event indicates no pedaling
+                                   
+    restartBLE();                  // Be sure BLE is running
 
-    // Process the crank event: Calculate cadence and clear the event flag
-    noInterrupts(); // crank_count and crank_event_time mustn't change
-    new_crank_event = false;
-    inst_cadence = (crank_count - last_crank_count) * 60000 / (crank_event_time - prior_event_time);
-    last_crank_count = crank_count;
-    prior_event_time = crank_event_time;
-    interrupts();
-    crank_still_timer = 0b100;
+    new_crank_event = false;     // Reset the flag
+
+    // Calculate cadence and clear the event flag
+//    noInterrupts(); // crank_count and crank_event_time mustn't change
+//    inst_cadence = (crank_count - last_crank_count) * 60000 / (crank_event_time - prior_event_time);
+//    last_crank_count = crank_count;
+//    prior_event_time = crank_event_time;
+//    interrupts();
   }
   else
   {
@@ -873,15 +974,23 @@ void process_crank_event()
     if (crank_still_timer == 0)
     {
       inst_cadence = 0;
-      if (++stop_time > BLANK_TIME)
+      stop_time++;
+      switch (display_state)
       {
-        display.setPowerSave(1);
-        display_state = 0;
-      }
-      if (stop_time > DIM_TIME) 
-      {
-        display.setContrast(CONTRAST_DIM);
-        display_state = 1;
+      case 2:                        // Full brightness
+        if (stop_time > DIM_TIME)
+        {
+          display.setContrast(CONTRAST_DIM);
+          display_state = 1;
+        }
+        break;
+      case 1:                        // Dimmed
+        if (stop_time > BLANK_TIME)
+        {
+          display.setPowerSave(1);
+          display_state = 0;
+        }
+        break;
       }
       if (stop_time == BLE_OFF_TIME)
         stopBLE(); // Note == rather than >   - Don't waste time "re-stopping"
@@ -1028,13 +1137,49 @@ void bleuart_check(void)
 }
 #endif
 
+void LED_flash(int times, int ms)
+{
+  for (int i = 0; i < times; i++) {
+    digitalWrite(LED_RED, 1);
+    delay(ms);
+    digitalWrite(LED_RED, 0);
+    if (i < times-1) delay(ms);
+  }
+}
+
 void loop()
 {
-  // Do what's needed based on the ticker value
+  #if defined(POWERSAVE) && (POWERSAVE != 1)
+  // If suspended for power saving, wait here. The CPU should stop in a low power state, then continue after a crank interrupt.
+  if (suspended) 
+  {
+    //LED_flash(1, 500); // Show that we're here with 2 one-second flashes
 
-  need_display_update = false;      // Indicates whether the display needs to be redrawn
+    /* Fix for FPU interrupt erratum https://infocenter.nordicsemi.com/pdf/nRF52840_Rev_1_Errata_v1.0.pdf
+       This is included in port_cmsis_systick.c - vPortSuppressTicksAndSleep but it's not clear that the conditional
+       compilation is correct. Specifically, inclusion depends upon __FPU_USED which seems to be getting set to zero.
+       A bug report to Adafruit may be appropriate, after testing to be sure.
+       */
 
-  // Stuff that happens on every tick
+    //#if (__FPU_PRESENT == 1)                      // Originally tested __FPU_USED
+    //__set_FPSCR(__get_FPSCR() & ~(0x0000009F));
+    //(void) __get_FPSCR();
+    //NVIC_ClearPendingIRQ(FPU_IRQn);
+    //#endif
+
+    //waitForEvent();  // This returns immediately since there's been an interrupt since the last call
+    //waitForEvent();  // Appears also to return due to something else such as FreeRTOS tick interrupt
+    delay(5000);     // At least slow the loop down!
+    //LED_flash(2, 500); // Show that we're back with 3 one-second flashes
+    return;
+  }
+  #endif
+
+  // Otherwise, do what's needed based on the ticker value
+
+  need_display_update = false;      // Various tasks can indicate that the display needs to be redrawn
+
+  // Things that happens on every tick
   update_resistance();
 
   #ifdef SERIAL
@@ -1045,34 +1190,38 @@ void loop()
   bleuart_check();
   #endif
 
-  // Stuff that happens on BATT_TICKS
-  if ((ticker % BATT_TICKS) == 0) {
-    update_battery();
-  }
-
-  // Other things happen at the default tick interval
+  // Things happen at the default tick interval
   if ((ticker % DEFAULT_TICKS) == 0) {
+    
     process_crank_event();
-    float inst_power = max((PC1 + PB1 * resistance + PA1 * resistance_sq) * ( PC2 + PB2 * cadence + PA2 * cadence * cadence), 0);
+    
     cadence = inst_cadence;
-    //cadence = (cadence + inst_cadence) / 2;
+    //cadence = (cadence + inst_cadence) / 2; //TEMPORARY UNTIL WE FIND MISSED EVENT BUG!
+    
+    float inst_power = max(sinterp(gears, power90, slopes, inst_gear, resistance) * ( PC2 + PB2 * cadence + PA2 * cadence * cadence), 0);
+    //float inst_power = max((PC1 + PB1 * resistance + PA1 * resistance_sq) * ( PC2 + PB2 * cadence + PA2 * cadence * cadence), 0);
     power = inst_power;
     //power = (power + inst_power) / 2;
+    
     need_display_update = true;
     updateBLE();
   }
 
-  // Final stuff that happens, as needed, on every tick
-  if (need_display_update && (display_state > 0)) display_numbers();  // Update the display
-
-  // Wake up at intervals
-  #ifdef POWERSAVE
-  if (suspended) 
-  {
-    waitForEvent();  // This returns immediately if there's been an interrupt since the last call
-    waitForEvent();
+  // Things that happen on BATT_TICKS
+  if ((ticker % BATT_TICKS) == 0) {
+    update_battery();
   }
-  #endif
+
+  // Final things, as needed, on every tick
+  if (need_display_update && (display_state > 0)) display_numbers();
+
   ticker++;
   delay(TICK_INTERVAL);
 }
+
+/* The idle task is another documented approach to power saving. It is NOT clear that this should be necessary when using tickless idle.
+void vApplicationIdleHook( void )
+{
+  waitForEvent();
+}
+*/

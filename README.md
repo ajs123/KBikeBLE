@@ -5,7 +5,7 @@ Arduino-based replacement computer for a Keiser M3 spin bike with Bluetooth serv
 Replaces the computer on a Keiser M3 spin bike and adds Bluetooth Low Energy (BLE) Cycling Power Service (CPS) and Fitness Machine Service (FTMS). Since it replaces rather than augments the original computer, a simple display is provided as well.
 
 ### Capabilities
-* Displays cadence (RPM), gear/resistance, and estimated power. The user can choose between an approximation of the gear displayed by the Keiser computer, or resistance from 0 to 100%, by moving the gear lever to the very top (with or without pedaling).
+* Displays cadence (RPM), gear/resistance, and estimated power. The user can choose between display of gears from 1-24 like the Keiser computer, or resistance from 0 to 100%, by moving the gear lever to the very top (with or without pedaling). 
 * Power estimates replicate those from Keiser V4.06 software
 * Bluetooth services
   * CPS (typical for power meters) - power and cadence
@@ -13,7 +13,7 @@ Replaces the computer on a Keiser M3 spin bike and adds Bluetooth Low Energy (BL
 * Power savings (runs for several days on a little 350 mAHr Li-poly battery)
   * Display dim (if supported by the display) after 60 (or #defined) seconds without pedaling
   * Display blank and de-energize the resistance sense pot after 300 (or #defined) seconds without pedaling
-  * Bluetooth shutdown after 30 minutes without pedaling; restart on resumption of pedaling
+  * Bluetooth shutdown after 30 (or #defined) minutes without pedaling; restart on resumption of pedaling
 
 
 ### Bike hardware
@@ -28,7 +28,7 @@ Any replacement RJ9 cord provides access, or you could tap into the Keiser compu
 KBikeBLE uses a digital output to apply voltage to the pot (Black wire) and reads the voltage at the wiper. Disabling resistance measurements and blanking the display provides good (days) battery life. The original Keiser computer appears to operate differently, perhaps for futher power savings. The ability to leave both connected at the same time is TBD.
 
 ### Computer hardware
-This code is for an Adafruit nrf52840 Express microcontroller and a generic 128x64 OLED display (SH1106 driver). The code will be the same or very similar for any board with a Nordic nrf52840, and the U8G2 display library will accommodate other displays.
+This code is for an Adafruit nrf52840 Express microcontroller and a generic 128x64 OLED display (SH1106 driver in the development system). The code will be the same or very similar for any board with a Nordic nrf52840, and the U8G2 display library will accommodate other displays.
 
 ### Dependencies
 * Adafruit BLE (Bluefruit) https://github.com/adafruit/Adafruit_nRF52_Arduino
