@@ -33,3 +33,4 @@
   - Table interpolation instead of polynomial fits for power determination
   - Simplified crank callback
   - Wakeup after display has been off forces immediate battery check
+  - #define option to power down completely, with pedaling causing a full reset

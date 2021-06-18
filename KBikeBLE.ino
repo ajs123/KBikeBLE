@@ -30,7 +30,10 @@
 #include "power_gear_tables.h"
 #include "calibration.h"
 
-#define POWERSAVE        // Incorporate power-saving shutdown
+//#define QUICKTIMEOUT     // Quick timeout options for testing power saving functions
+
+#define POWERSAVE 1      // Incorporate power-saving shutdown. 1 = use systemOff() function, otherwise just long delay()
+
 //#define USE_SERIAL           // Incorporate serial functions. Will attempt serial connection at startup.
 #define BLEUART          // Activates serial over BLE
 //#define DEBUG            // Activates debug code. Requires USE_SERIAL for any serial console bits.
@@ -67,10 +70,18 @@
    Options
 
  ********************************************************************************/
+#ifdef QUICKTIMEOUT
+#define DIM_TIME 20//60         // Duration (sec) of no pedaling to dim display (if supported)
+#define BLANK_TIME 30//180      // Duration (sec) to blank display
+#define BLE_OFF_TIME 30//900    // Duration (sec) to turn off Bluetooth to save power. Will disconnect from Central after this time.
+#define POWERDOWN_TIME 40//1200 // Duration (sec) to suspend the main loop pending a crank interrupt
+#else
 #define DIM_TIME 60         // Duration (sec) of no pedaling to dim display (if supported)
 #define BLANK_TIME 180      // Duration (sec) to blank display
 #define BLE_OFF_TIME 900    // Duration (sec) to turn off Bluetooth to save power. Will disconnect from Central after this time.
 #define POWERDOWN_TIME 1200 // Duration (sec) to suspend the main loop pending a crank interrupt
+#endif
+//*/
 #define CONTRAST_FULL 255
 #define CONTRAST_DIM 0
 
@@ -109,7 +120,7 @@ float res_factor;
 bool serial_present = false;
 float resistance_sq;             // Set when checking resistance, used in both gear and power calcs
 uint8_t inst_gear;               // Gear number: Index into power tables and, optionally, displayed
-#ifdef POWERSAVE
+#if defined(POWERSAVE) && (POWERSAVE != 1)
 bool suspended;                  // Set to true when suspending the main loop
 #endif
 
@@ -640,9 +651,7 @@ void crank_callback()
   uint32_t dt;
   uint8_t state = prev_crank_state | digitalRead(CRANK_PIN);  // Yields a combined state between 0b00 and 0b11
   
-  #ifdef POWERSAVE
   if (suspended) resume();   
-  #endif
 
   switch (state) {
     case 0b00 :   // Was low (active) and still low - spurious/noise.
@@ -671,7 +680,7 @@ void crank_callback()
 
 /*********************************************************************************************
   Simplified ISR for crank sensor events. Triggerd on the pin tranisitioning low (switch closure).
-  As long as there's been sufficient quiet time, trust the hardware and call it a crank event.
+  As long as there's been more than MIN_INACTIVE time, trust the hardware and call it a crank event.
   Interrupts occurring closer together than MIN_ACTIVE are quickly dismissed.
 **********************************************************************************************/
 
@@ -680,19 +689,21 @@ const uint32_t MIN_INACTIVE = 300; // milliseconds (corresponds to 200 rpm)
 void crank_callback()
 {
   uint32_t now = millis();
-  //uint32_t now = xTaskGetTickCountFromISR();    // FreeRTOS gives time in 1/1024ths sec, whcih is what's needed for CPM
+  //uint32_t now = xTaskGetTickCountFromISR();    // By default, FreeRTOS gives time in 1/1024 sec, which is what's needed for CPM
+                                                  // This eliminates one divide, but depends upon use of the default interval
   uint32_t dt = now - crank_event_time;
   
   if (dt < MIN_INACTIVE) return;  
 
-  #ifdef POWERSAVE
+  #if defined(POWERSAVE) && (POWERSAVE != 1)
   if (suspended) resume();   
   #endif
 
   // The following are needed for the Cycling Power Measurement characteristic
   crank_count++;                                 // Accumulated crank rotationst
   crank_ticks += min(dt * 1024 / 1000, 0xFFFF);  // Crank event clock in 1/1024 sec ticks
-  //crank_tickes += ( dt & 0xFFFF );               // dt is in FreeRTOS ticks, which are 1/1024 sec as needed for CPM
+  //crank_ticks += ( dt & 0xFFFF );              // dt is in FreeRTOS ticks, which are 1/1024 sec as needed for CPM
+  //crank_ticks = now & 0xFFFF;
 
   crank_event_time = now;
   new_crank_event = true;     // Tell the main loop that there is new crank data
@@ -782,19 +793,78 @@ void setup()
   // Set up the analog input for resistance measurement
   ADC_setup();
 
-  //sd_power_mode_set(NRF_POWER_MODE_LOWPWR);  see https://forums.adafruit.com/viewtopic.php?f=24&t=128823&sid=4f70bc48daaf47bd752bf8d108291049&start=75
+  //sd_power_mode_set(NRF_POWER_MODE_LOWPWR);  //see https://forums.adafruit.com/viewtopic.php?f=24&t=128823&sid=4f70bc48daaf47bd752bf8d108291049&start=75
 }
 
 /*********************************************************************************************
  * Suspend (power save) 
  *   - de-energizes the resistance sense pot
- *   - suspends the main loop
+ *   - If POWERSAVE == 1, powers the system down, with the crank switch configured as reset
+ *   - Otherwise, try :-) to minimize power used
+ * See the notes in each section
  *********************************************************************************************/
 #ifdef POWERSAVE
+#if (POWERSAVE == 1)
+/*
+Power down until reset. Reset is by a selected level (not edge) on the crank switch GPIO pin.
+We configure reset to occur when the crank switch changes to the opposite of its current state.
+
+Though the crank switch is usually open because the range of movement during which the magnet is
+nearby is small, it's possible for the pedals to be stopped with the switch closed. The stock
+systemOff() sets up a pullup if reset is to be active-low, or a pulldown if it's to be active-high.
+Here, with the non-GPIO side of the crank switch hard wired to ground, we're stuck with a pullup.
+Our copy of the stock systemOff() substitutes PULLUP for PULLDOWN when SENSE_HIGH is needed. 
+
+The compromise made is in battery usage: the closed switch with the 22K pullup consumes 0.15 mA
+continuously. Alternatives include (1) active control over the non-GPIO side of the switch, which
+would affect the resistance measurements; (2) AC coupling of the switch (parallel RC - would consume)
+less, but not zero, current; (3) a very weak external pullup.  
+*/
+void turnOff(uint32_t pin, uint8_t wake_logic)
+{
+//  for(int i=0; i<8; i++)
+//  {
+//    NRF_POWER->RAM[i].POWERCLR = 0x03UL;
+//  }
+
+  pin = g_ADigitalPinMap[pin];
+
+  if ( wake_logic )
+  {
+    //Original systemOff() uses NRF_GPIO_PIN_PULLDOWN here
+    nrf_gpio_cfg_sense_input(pin, NRF_GPIO_PIN_PULLUP, NRF_GPIO_PIN_SENSE_HIGH);
+  }else
+  {
+    nrf_gpio_cfg_sense_input(pin, NRF_GPIO_PIN_PULLUP, NRF_GPIO_PIN_SENSE_LOW);
+  }
+
+  uint8_t sd_en;
+  (void) sd_softdevice_is_enabled(&sd_en);
+
+  // Enter System OFF state
+  if ( sd_en )
+  {
+    sd_power_system_off();
+  }else
+  {
+    NRF_POWER->SYSTEMOFF = 1;
+  }
+}
+
 void suspend()
 {
   digitalWrite(RESISTANCE_TOP, LOW);   // De-energize the resistance pot
-  //suspendLoop();                     // Suspend the main loop(). resumeLoop() doesn't seem to work.        
+//  if (digitalRead(CRANK_PIN)) LED_flash(500, 1); else LED_flash(500, 3);
+  turnOff(CRANK_PIN, !digitalRead(CRANK_PIN)); 
+}
+#endif
+#else
+void suspend()
+{
+  digitalWrite(RESISTANCE_TOP, LOW);   // De-energize the resistance pot
+  //suspendLoop();                     // Suspend the main loop(). Bur resumeLoop() doesn't seem to work.      
+  //sd_softdevice_disable();           // May need to do this, then re-initialize BLE on restart
+  //sd_power_system_off();
   suspended = true;                    // Setting this causes waitForEvent() in the main loop.
 }
 
@@ -805,16 +875,17 @@ void resume()
   suspended = false;
 }
 #endif
+
 /**********************************************************************************************
    Main loop()
 
    We define these periodic tasks:
-     * Checking the resistance measurement. It helps for this to be updated 2/sec.
-     * Checking for crank event(s) and recalculate cadence and power. This could be totally
-       event-based, but here we're doing it once per second.
+     * Checking the resistance measurement. It helps the user for this to be updated 2/sec.
+     * Checking for crank event(s) that were handled by the crank ISR, recalculating power, 
+       and determine any need for power savings steps.
      * Updating BLE service data, if connected. Service specs call for this to be about 1/sec
      * Checking the battery. 1/min seems like enough.
-     * Updating the display: 1/sec unless the resistance has changed.
+     * Updating the display as needed.
 
    We use a little scheduler that calls each function at the appropriate times.
 
@@ -829,7 +900,7 @@ void resume()
 
 uint8_t ticker = 0;       // Ticker inits to zero, also is reset under certain circumstances
 uint16_t last_crank_count = 0;
-uint8_t crank_still_timer = 3; // Number of updates with no crank event to call the cadence zero
+uint8_t crank_still_timer = 3; // No pedaling is defined as this many crank checks with no event
 uint16_t stop_time;
 
 uint8_t prev_resistance = 0;
@@ -848,15 +919,6 @@ void lever_check()  // Moving the gear lever to the top switches the resistance/
 
 void update_resistance()
 {
-  /* In-code oversampling - superceded by oversampling in the nRF52 library
-  float rx = analogRead(RESISTANCE_PIN);
-  for (int ir = 0; ir < 2; ir++) 
-  {
-    delay(10);
-    rx += analogRead(RESISTANCE_PIN);
-  }
-  raw_resistance = rx/3;
-  */
   raw_resistance = analogRead(RESISTANCE_PIN);  // ADC set to oversample
   resistance = max((raw_resistance - res_offset) * res_factor, 0);
   inst_gear = gear_lookup(resistance);
@@ -912,15 +974,23 @@ void process_crank_event()
     if (crank_still_timer == 0)
     {
       inst_cadence = 0;
-      if (++stop_time > BLANK_TIME)
+      stop_time++;
+      switch (display_state)
       {
-        display.setPowerSave(1);
-        display_state = 0;
-      }
-      if (stop_time > DIM_TIME) 
-      {
-        display.setContrast(CONTRAST_DIM);
-        display_state = 1;
+      case 2:                        // Full brightness
+        if (stop_time > DIM_TIME)
+        {
+          display.setContrast(CONTRAST_DIM);
+          display_state = 1;
+        }
+        break;
+      case 1:                        // Dimmed
+        if (stop_time > BLANK_TIME)
+        {
+          display.setPowerSave(1);
+          display_state = 0;
+        }
+        break;
       }
       if (stop_time == BLE_OFF_TIME)
         stopBLE(); // Note == rather than >   - Don't waste time "re-stopping"
@@ -1079,15 +1149,28 @@ void LED_flash(int times, int ms)
 
 void loop()
 {
+  #if defined(POWERSAVE) && (POWERSAVE != 1)
   // If suspended for power saving, wait here. The CPU should stop in a low power state, then continue after a crank interrupt.
-  #ifdef POWERSAVE
   if (suspended) 
   {
-    //LED_flash(2, 1000); // Show that we're here with 2 one-second flashes
-    waitForEvent();  // This returns immediately since there's been an interrupt since the last call
-    waitForEvent();  // Appears also to return due to something else such as FreeRTOS tick interrupt
+    //LED_flash(1, 500); // Show that we're here with 2 one-second flashes
+
+    /* Fix for FPU interrupt erratum https://infocenter.nordicsemi.com/pdf/nRF52840_Rev_1_Errata_v1.0.pdf
+       This is included in port_cmsis_systick.c - vPortSuppressTicksAndSleep but it's not clear that the conditional
+       compilation is correct. Specifically, inclusion depends upon __FPU_USED which seems to be getting set to zero.
+       A bug report to Adafruit may be appropriate, after testing to be sure.
+       */
+
+    //#if (__FPU_PRESENT == 1)                      // Originally tested __FPU_USED
+    //__set_FPSCR(__get_FPSCR() & ~(0x0000009F));
+    //(void) __get_FPSCR();
+    //NVIC_ClearPendingIRQ(FPU_IRQn);
+    //#endif
+
+    //waitForEvent();  // This returns immediately since there's been an interrupt since the last call
+    //waitForEvent();  // Appears also to return due to something else such as FreeRTOS tick interrupt
     delay(5000);     // At least slow the loop down!
-    //LED_flash(3, 1000); // Show that we're back with 3 one-second flashes
+    //LED_flash(2, 500); // Show that we're back with 3 one-second flashes
     return;
   }
   #endif
