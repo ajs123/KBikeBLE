@@ -34,3 +34,4 @@
   - Simplified crank callback
   - Wakeup after display has been off forces immediate battery check
   - #define option to power down completely, with pedaling causing a full reset
+- V0.14
