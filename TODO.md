@@ -1,6 +1,6 @@
 ## TODO
-- Fix: If displaying gears, display will update on half-second intervals only if the integer resistance changes
-- Consider use of FreeRTOS 1/1024 second ticks to avoid 1024/1000 scaling of the CPM clock
+- Fix: If displaying gears, display will update on half-second intervals only if the integer resistance changes. Display update should check for a change in whatever is being displayed.
+- Is it worth drawing a display background (battery and labels) and copying instead of clearing on each update?
 - Continued work on power saving
   - De-mystify waitForEvent() behavior and related matters having to do with the nRF52 core and the FreeRTOS port
 - In update_resistance(), correct the logic regarding when the gear needs to be determined
