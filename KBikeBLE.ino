@@ -30,22 +30,24 @@
 #include "power_gear_tables.h"
 #include "calibration.h"
 
-//#define QUICKTIMEOUT     // Quick timeout options for testing power saving functions
+/**********************************************************************
+ * Configuration options
+ **********************************************************************/
 
 #define POWERSAVE 1      // Incorporate power-saving shutdown. 1 = use systemOff() function, otherwise just long delay()
-
-//#define USE_SERIAL           // Incorporate serial functions. Will attempt serial connection at startup.
+//#define USE_SERIAL     // Incorporate USB serial functions. Will attempt serial connection at startup.
 #define BLEUART          // Activates serial over BLE
-//#define DEBUG            // Activates debug code. Requires USE_SERIAL for any serial console bits.
+
+//#define QUICKTIMEOUT     // Quick timeout options for testing power saving functions
+//#define DEBUG          // Activates debug code. Requires USE_SERIAL for any serial console bits.
+//#define LEVER_EXTRAS stopBLE(); // Anything here is inserted into lever_check(), usually to
+                                  // avoid having to wait for timeouts.
 
 #if defined(USE_SERIAL) && defined(DEBUG)
    #define DEBUG(x,l) Serial.print(x); Serial.print(l);
 #else
    #define DEBUG(x,l)
 #endif
-
-//#define LEVER_EXTRAS stopBLE(); // Anything here is inserted into lever_check(), usually to
-                                  // avoid having to wait for timeouts.
 
 /*********************************************************************
    Keiser M3 interface through the RJ9 jack (standard colors)
@@ -68,7 +70,6 @@
 
 /********************************************************************************
    Options
-
  ********************************************************************************/
 #ifdef QUICKTIMEOUT
 #define DIM_TIME 20//60         // Duration (sec) of no pedaling to dim display (if supported)
@@ -81,13 +82,13 @@
 #define BLE_OFF_TIME 900    // Duration (sec) to turn off Bluetooth to save power. Will disconnect from Central after this time.
 #define POWERDOWN_TIME 1200 // Duration (sec) to suspend the main loop pending a crank interrupt
 #endif
-//*/
-#define CONTRAST_FULL 255
+
+#define CONTRAST_FULL 255   // Full and reduced display brightness. These depend upon the display used.
 #define CONTRAST_DIM 0
 
 #define ANALOG_OVERSAMPLE 4 // Resistance measurements can be noisy!
 
-#define BLE_TX_POWER -12       // BLE transmit power in dBm
+#define BLE_TX_POWER -12    // BLE transmit power in dBm
 // - nRF52840: -40, -20, -16, -12, -8, -4, 0, +2, +3, +4, +5, +6, +7, or +8
 #define BLE_LED_INTERVAL 1000  // ms
 
@@ -688,9 +689,8 @@ const uint32_t MIN_INACTIVE = 300; // milliseconds (corresponds to 200 rpm)
 
 void crank_callback()
 {
-  uint32_t now = millis();
-  //uint32_t now = xTaskGetTickCountFromISR();    // By default, FreeRTOS gives time in 1/1024 sec, which is what's needed for CPM
-                                                  // This eliminates one divide, but depends upon use of the default interval
+  //uint32_t now = millis(); // millis() is calculated from the FreeRTOS tick count and rate, so just use the tick count
+  uint32_t now = xTaskGetTickCountFromISR();    // This depends upon the default tick interval of 1/1024 sec
   uint32_t dt = now - crank_event_time;
   
   if (dt < MIN_INACTIVE) return;  
@@ -701,14 +701,13 @@ void crank_callback()
 
   // The following are needed for the Cycling Power Measurement characteristic
   crank_count++;                                 // Accumulated crank rotationst
-  crank_ticks += min(dt * 1024 / 1000, 0xFFFF);  // Crank event clock in 1/1024 sec ticks
-  //crank_ticks += ( dt & 0xFFFF );              // dt is in FreeRTOS ticks, which are 1/1024 sec as needed for CPM
-  //crank_ticks = now & 0xFFFF;
+  //crank_ticks += min(dt * 1024 / 1000, 0xFFFF);  // Crank event clock in 1/1024 sec ticks
+  crank_ticks = now & 0xFFFF;
 
   crank_event_time = now;
   new_crank_event = true;     // Tell the main loop that there is new crank data
-  inst_cadence = 60000 / dt;  // This used to be done in the main loop
-  //inst_cadence = 61440 / dt;  // RPM = 60 / ( dt * 1000/1024 )
+  //inst_cadence = 60000 / dt;  // This used to be done in the main loop
+  inst_cadence = 61440 / dt;  // RPM = 60 / ( dt * 1000/1024 );
 }
 
 /********************************************************************************

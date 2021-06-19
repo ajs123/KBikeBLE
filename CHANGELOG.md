@@ -35,3 +35,4 @@
   - Wakeup after display has been off forces immediate battery check
   - #define option to power down completely, with pedaling causing a full reset
 - V0.14
+  - Use the FreeRTOS tick count for crank timing, since that's how millis() is determined. This sticks us with the default 1/1024 sec tick rate. An alternative is to use micros() *if* that function is using a hardware counter
