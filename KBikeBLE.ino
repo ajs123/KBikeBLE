@@ -219,7 +219,8 @@ void display_numbers()
   }
   right_just((int) round(power), 10, 127, 18);
 
-  display.sendBuffer();
+  display.sendBuffer();  // only needed for certain displays
+  //u8g2_send_buffer(&display);
 }
 
 /*********************************************************************************
