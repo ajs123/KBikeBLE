@@ -10,6 +10,7 @@ Replaces the computer on a Keiser M3 spin bike and adds Bluetooth Low Energy (BL
 * Bluetooth services
   * CPS (typical for power meters) - power and cadence
   * FTMS (typical for ergometers and trainers) - power, resistance setting, and cadence (though no apps I have tried to date read the resistance, and all I have tried want to set the resistance (resistance servo on the "some day" list!))
+  * Battery
 * Power savings (runs for several days on a little 350 mAHr Li-poly battery)
   * Display dim (if supported by the display) after 60 (or #defined) seconds without pedaling
   * Display blank and de-energize the resistance sense pot after 300 (or #defined) seconds without pedaling
