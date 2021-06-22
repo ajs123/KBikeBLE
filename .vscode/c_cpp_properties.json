@@ -64,7 +64,7 @@
             "cppStandard": "c++11",
             "defines": [
                 "F_CPU=64000000",
-                "ARDUINO=10813",
+                "ARDUINO=10607",
                 "ARDUINO_NRF52840_FEATHER",
                 "ARDUINO_ARCH_NRF52",
                 "ARDUINO_BSP_VERSION=\"0.22.1\"",

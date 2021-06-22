@@ -37,6 +37,7 @@
 #define POWERSAVE 1      // Incorporate power-saving shutdown. 1 = use systemOff() function, otherwise just long delay()
 //#define USE_SERIAL     // Incorporate USB serial functions. Will attempt serial connection at startup.
 #define BLEUART          // Activates serial over BLE
+#define BLEBAS           // Activate BLE battery service
 
 //#define QUICKTIMEOUT     // Quick timeout options for testing power saving functions
 //#define DEBUG          // Activates debug code. Requires USE_SERIAL for any serial console bits.
@@ -119,7 +120,7 @@ float raw_resistance;            // Raw resistance measurement from the ADC. Glo
 float res_offset;                // Cal fators - raw_resistance to normalized resistance
 float res_factor;
 bool serial_present = false;
-float resistance_sq;             // Set when checking resistance, used in both gear and power calcs
+//float resistance_sq;             // Used in both gear and power calcs if not using the lookup table
 uint8_t inst_gear;               // Gear number: Index into power tables and, optionally, displayed
 #if defined(POWERSAVE) && (POWERSAVE != 1)
 bool suspended;                  // Set to true when suspending the main loop
@@ -127,10 +128,10 @@ bool suspended;                  // Set to true when suspending the main loop
 
 uint8_t batt_pct;                 // Battery percentage charge
 
-volatile float inst_cadence = 0;  // Cadence calculated in the crank ISR
+volatile float inst_cadence = 0;        // Cadence calculated in the crank ISR
 volatile uint16_t crank_count = 0;      // Cumulative crank rotations - set by the crank sensor ISR, reported by CPS and used to determine cadence
 volatile uint32_t crank_event_time = 0; // Set to the most recent crank event time by the crank sensor ISR [ms]
-//volatile uint32_t last_change_time;     // Used in the crank sensor ISR for sensor debounce [ms]. Initialized to millis() in Setup().
+//volatile uint32_t last_change_time;   // Used in the crank sensor ISR for sensor debounce [ms]. Initialized to millis() in Setup().
 volatile bool new_crank_event = false;  // Set by the crank sensor ISR; cleared by the main loop
 volatile uint16_t crank_ticks;          // 1/1024 sec per tick crank clock, for Cycling Power Measurement [ticks]
 
@@ -158,14 +159,16 @@ BLECharacteristic char_cp_measurement = BLECharacteristic(0x2A63); // Cycling Po
 BLECharacteristic char_sensor_loc = BLECharacteristic(0x2A5D);     // Sensor Location
 
 BLEDis bledis;    // DIS (Device Information Service) helper class instance
-//BLEBas blebas;    // BAS (Battery Service) helper class instance
+#ifdef BLEBAS
+BLEBas blebas;    // BAS (Battery Service) helper class instance
+#endif
 #ifdef BLEUART
 BLEUart bleuart;  // UART over BLE
 #endif
 
 /*********************************************************************************
   Display code
-* ********************************************************************************/
+**********************************************************************************/
 
 void display_setup(void)
 {
@@ -186,46 +189,69 @@ void right_just(uint16_t number, int x, int y, int width)
 #define BWIDTH 16
 #define BHEIGHT 8
 #define BUTTON 2
-void draw_batt(uint8_t pos_x, uint8_t pos_y, uint8_t pct)
+#define BATT_POS_X 46
+#define BATT_POS_Y 0
+void draw_batt(uint8_t pct)
 {
-  display.drawFrame(pos_x, pos_y, BWIDTH, BHEIGHT);
-  display.drawBox(pos_x + BWIDTH, pos_y + ((BHEIGHT - BUTTON) / 2), BUTTON, BUTTON);
-  display.drawBox(pos_x + 2, pos_y + 2, pct * (BWIDTH - 4) / 100, (BHEIGHT - 4));
+  display.drawFrame(BATT_POS_X, BATT_POS_Y, BWIDTH, BHEIGHT);                                   // Battery body
+  display.drawBox(BATT_POS_X + BWIDTH, BATT_POS_Y + ((BHEIGHT - BUTTON) / 2), BUTTON, BUTTON);  // Battery "button"
+  display.setDrawColor(0);
+  display.drawBox(BATT_POS_X + 2, BATT_POS_Y + 2, BWIDTH - 4, BHEIGHT - 4);
+  display.setDrawColor(1);
+  display.drawBox(BATT_POS_X + 2, BATT_POS_Y + 2, pct * (BWIDTH - 4) / 100, (BHEIGHT - 4));     // Filled area proportional to charge estimate
 }
+
+#if (0) // not used
+void update_batt(uint8_t pct)
+{
+  display.setDrawColor(0);                                                                    // Empty interior
+  display.drawBox(BATT_POS_X + 2, BATT_POS_Y + 2, BWIDTH - 4, BHEIGHT - 4);
+  display.setDrawColor(1);
+  display.drawBox(BATT_POS_X + 2, BATT_POS_Y + 2, pct * (BWIDTH - 4) / 100, (BHEIGHT - 4));     // Filled area proportional to charge estimate
+}
+#endif
+
+uint16_t prev_cad = 0;
+uint16_t prev_rg = 0;
+uint16_t prev_pwr = 0;
+uint8_t prev_batt = 0;
+const char * rg_labels[2] = {"GEAR", "RES %"};
+const char * rg_label = rg_labels[0];
 
 void display_numbers()
 {
-  display.clearBuffer();
-  display.setFont(u8g2_font_helvR10_tr);
-  display.setCursor(0, 16);
-  display.print("RPM");
-  display.setCursor(0, 58);
-  if (gear_display) {
-    display.print("GEAR");
-  } else {
-    display.print("RES %");
+  uint16_t rg = gear_display ? inst_gear : round(resistance);
+  uint16_t pwr = round(power);
+  uint16_t cad = round(cadence);
+  if ( (cad != prev_cad) || (rg != prev_rg) || (pwr != prev_pwr) || (batt_pct != prev_batt) )
+  {
+    display.clearBuffer();
+    display.setFont(u8g2_font_helvB10_tr);
+    display.setCursor(0, 16);
+    display.print("RPM");
+    display.setCursor(0, 58);
+    display.print(rg_label);
+    display.setCursor(0, 100);
+    display.print("WATTS");
+
+    draw_batt(round(batt_pct));
+
+    display.setFont(u8g2_font_helvB24_tn);
+    right_just(cad, 10, 43, 18);
+    right_just(rg, 10, 85, 18);
+    right_just(pwr, 10, 127, 18);
+
+    display.sendBuffer();
+
+    prev_cad = cad;
+    prev_rg = rg;
+    prev_pwr = pwr;
+    prev_batt = batt_pct;
   }
-  display.setCursor(0, 100);
-  display.print("WATTS");
-
-  draw_batt(46, 0, round(batt_pct));
-
-  display.setFont(u8g2_font_helvB24_tn);
-  right_just((int) round(cadence), 10, 43, 18);
-  if (gear_display) {
-    right_just(inst_gear, 10, 85, 18);
-  } else {
-    right_just((int) round(resistance), 10, 85, 18);
-  }
-  right_just((int) round(power), 10, 127, 18);
-
-  display.sendBuffer();  // only needed for certain displays
-  //u8g2_send_buffer(&display);
 }
 
 /*********************************************************************************
   Analog input processing - resistance magnet position and battery
-
 * ********************************************************************************/
 
 void ADC_setup(void)               // Set up the ADC for ongoing resistance measurement
@@ -233,20 +259,14 @@ void ADC_setup(void)               // Set up the ADC for ongoing resistance meas
   analogReference(AR_INTERNAL);   // 3.6V
   analogOversampling(ANALOG_OVERSAMPLE);
   analogReadResolution(10);       // 10 bits for better gear delineation and for battery measurement
-  delay(1);                       // Let the ADC settle before any measurements
+  delay(1);                       // Let the ADC settle before any measurements. Only important if changing the reference or possibly resolution
 }
 
 float readVBAT(void)   // Compacted from the Adafruit example
 {
   float mvolts;
 
-  //analogReference(AR_INTERNAL_3_0);                    // Set the analog reference to 3.0V (default = 3.6V)
-  //analogReadResolution(12); // Can be 8, 10, 12 or 14  // Set the resolution to 12-bit (0..4095)
-  //delay(1);                                            // Let the ADC settle
-
   mvolts = analogRead(BATTERY_PIN) * VBAT_MV_PER_LSB;
-
-  //ADC_setup();                                         // Set the ADC back to our default settings
 
   if (mvolts < 3300)                                  // LiPo model...
     return 0;                                         //   Dead at 3.3V
@@ -758,7 +778,9 @@ void setup()
 
   // Start the BLE Battery Service and set it to 100%
   //  Serial.println("Configuring the Battery Service");
-  //  blebas.begin();
+  #ifdef BLEBAS
+  blebas.begin();
+  #endif
   //  blebas.write(100);
 
   // Setup the FiTness Machine and Cycling Power services
@@ -884,10 +906,10 @@ void resume()
      * Checking for crank event(s) that were handled by the crank ISR, recalculating power, 
        and determine any need for power savings steps.
      * Updating BLE service data, if connected. Service specs call for this to be about 1/sec
-     * Checking the battery. 1/min seems like enough.
+     * Checking the battery. Every 30 sec seems like plenty.
      * Updating the display as needed.
 
-   We use a little scheduler that calls each function at the appropriate times.
+   We use a little scheduler that calls each function at the appropriate times. 
 
    The Adafruit board uses Open RTOS, and for minimal power we could use the RTOS scheduler.
    However, Open RTOS already provides a delay() function that's basically a sleep, so there's
@@ -895,22 +917,23 @@ void resume()
  **********************************************************************************************/
 
 #define TICK_INTERVAL 500 // ms
-#define BATT_TICKS 64     // Battery check every __ ticks
-#define DEFAULT_TICKS 2   // Default
+#define BATT_TICKS 60     // Battery check every __ ticks
+#define DEFAULT_TICKS 2   // Default stuff every __ ticks
 
 uint8_t ticker = 0;       // Ticker inits to zero, also is reset under certain circumstances
 uint16_t last_crank_count = 0;
 uint8_t crank_still_timer = 3; // No pedaling is defined as this many crank checks with no event
 uint16_t stop_time;
 
-uint8_t prev_resistance = 0;
-bool need_display_update;
+//uint8_t prev_resistance = 0;  // Display updates are a bit expensive, so update only when needed
+//bool need_display_update;
 
 void lever_check()  // Moving the gear lever to the top switches the resistance/gear display mode
 {
   lever_state = (lever_state << 1) & 0b00000011 | (resistance > BRAKE) ;
   if (lever_state == 0b00000001) {
     gear_display = !gear_display;
+    rg_label = rg_labels[(int) gear_display];
 #ifdef LEVER_EXTRAS
     LEVER_EXTRAS
 #endif
@@ -923,20 +946,25 @@ void update_resistance()
   resistance = max((raw_resistance - res_offset) * res_factor, 0);
   inst_gear = gear_lookup(resistance);
   //resistance_sq = resistance * resistance;
+  //inst_gear = max(floor(GC + GB * resistance + GA * resistance_sq), 1) ;
+  lever_check();
+  /* Ensure display update if the resistance has changed. 
+     Now taken care of in display_numbers()
   uint8_t int_resistance = round(resistance);
   if (prev_resistance != int_resistance) {
     lever_check();
-    //inst_gear = max(floor(GC + GB * resistance + GA * resistance_sq), 1) ;
     need_display_update = true;
     prev_resistance = int_resistance;
-    DEBUG("Raw resistance ", "")
-    DEBUG(raw_resistance, "\n")
   }
+  */
 }
 
 void update_battery()
 {
   batt_pct = readVBAT();
+  #ifdef BLEBAS
+  blebas.write(batt_pct);
+  #endif
 }
 
 void process_crank_event()
@@ -1173,11 +1201,12 @@ void loop()
     //LED_flash(2, 500); // Show that we're back with 3 one-second flashes
     return;
   }
-  #endif
 
   // Otherwise, do what's needed based on the ticker value
+  #endif
 
-  need_display_update = false;      // Various tasks can indicate that the display needs to be redrawn
+  //need_display_update = false;      // Various tasks can indicate that the display might need to be redrawn
+                                    // Actual redraw requires that content has changed, so this is of little benefit.
 
   // Things that happens on every tick
   update_resistance();
@@ -1196,14 +1225,13 @@ void loop()
     process_crank_event();
     
     cadence = inst_cadence;
-    //cadence = (cadence + inst_cadence) / 2; //TEMPORARY UNTIL WE FIND MISSED EVENT BUG!
     
     float inst_power = max(sinterp(gears, power90, slopes, inst_gear, resistance) * ( PC2 + PB2 * cadence + PA2 * cadence * cadence), 0);
     //float inst_power = max((PC1 + PB1 * resistance + PA1 * resistance_sq) * ( PC2 + PB2 * cadence + PA2 * cadence * cadence), 0);
     power = inst_power;
     //power = (power + inst_power) / 2;
     
-    need_display_update = true;
+    //need_display_update = true;
     updateBLE();
   }
 
@@ -1213,7 +1241,8 @@ void loop()
   }
 
   // Final things, as needed, on every tick
-  if (need_display_update && (display_state > 0)) display_numbers();
+  //if (need_display_update && (display_state > 0)) display_numbers();
+  if (display_state > 0) display_numbers();
 
   ticker++;
   delay(TICK_INTERVAL);

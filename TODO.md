@@ -1,26 +1,22 @@
 ## TODO
-- Fix: If displaying gears, display will update on half-second intervals only if the integer resistance changes. Display update should check for a change in whatever is being displayed.
-- Is it worth drawing a display background (battery and labels) and copying instead of clearing on each update?
-- Continued work on power saving
-  - De-mystify waitForEvent() behavior and related matters having to do with the nRF52 core and the FreeRTOS port
-- In update_resistance(), correct the logic regarding when the gear needs to be determined
+- Another look at what needs to be recalculated under different circumstances. Right now, we check resistance twice per second, and recalculate power once per second regardless of whether resistance of cadence have changed. Twice per second, we update the display *if* any of the displayed numbers have changed. The code that checks for changes looks at all four numbers (battery, cadence, resistance/gear, power) each time, even though only resistance/gear might be the only quantity that could even in principle have changed. This is probably fine - as efficient as the alternatives - but worth one more look.
+- Continued work on power savings
+  - Determine power use by the blanked display. The SH1106 controller claims 5 uA sleep mode current, but other parts may be using power. If this is significant, there could be benefit to switching off power to the display module.
+  - De-mystify waitForEvent() behavior and related matters having to do with the nRF52 core and the FreeRTOS port (important only if unhappy with shutdown/reset)
+  - If the hardware reset button is exposed, little harm in just shutting down
 - Consider using a different reference, e.g., Vdd ref for the pot to maintain cal near battery end of charge
-- Closer look at what needs to be recalculated under different circumstances - e.g., no need to re-do resistance calc if the value hasn't changed at all
 - Calibration items
   - Save calibration in littleFS
   - Automated sensor calibration, equivalent to Keiser's procedure
 - Console access
-  - Bluetooth console
+  - Bluetooth console instead of USB serial
   - Does USB or BLEUart console preclude need for bike-based cal triggers like Keiser's?
 - Keeping more parameters or options in the filesystem
-- If continuing to support FTMS, implement a real model-based calc for speed (mph/kph) as a function of power and cadence
+- BLE Services
+  - If continuing to support FTMS, implement a real model-based calc for speed (mph/kph) as a function of power and cadence. 
+  - Either way, use globals rather than passed parameters for the data.
+- Lots of functions have void argument lists and are there just for organizational purposes. Should they be marked as inline?
 - Clean up code in connect callbacks
-- Look at ways to further save power, especially when not connected
-  - Check whether waitForEvent() is as effective as other means
-  - If the hardware reset button is exposed, little harm in just shutting down
-- Use a proper (pixel-based) right-justification on the display
-- Something more flexible and elegant than the current hard-coded display routine
-  - In any event, choose between globals and arguments on the display routine(s)
 - Improve the display: larger size or double area
   - Things maybe to add
     - Accumulated  data
