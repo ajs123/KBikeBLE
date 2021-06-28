@@ -12,3 +12,8 @@ Code as provided works with...
     - Possibly choosing a different value for CONTRAST_DIM
 - An RJ9 cable (landline phone handset cable) to plug into the connector on the bike. 
 - A battery if you want the computer to work without power from the USB connector. Testing is with an Adafruit 4237 https://www.adafruit.com/product/4237. At 350 mAHr, this will power the computer for *about* a week with daily use (testing is incomplete!).
+
+Electrical connections...
+- Bike - RJ9 conductors to 3.3V, ground, GPIO, and analog input - see comments in the code
+- Display - 3.3V, ground, SCD, SCL (standard I2C connection)
+- Battery - with the Adafruit board and battery, plug it in.
