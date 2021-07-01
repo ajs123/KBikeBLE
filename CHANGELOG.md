@@ -38,3 +38,6 @@
   - Use the FreeRTOS tick count for crank timing, since that's how millis() is determined. This sticks us with the default 1/1024 sec tick rate. An alternative is to use micros() *if* that function is using a hardware counter. The available DWT counter stops when the CPU is idled, presumably including calls to delay(). See https://github.com/adafruit/Adafruit_nRF52_Arduino/issues/451
   - Added BLE battery service
   - Cleaned up display code: Whether to redraw is determined in the display function based on actual displayed values. Changes in GEAR / RES % labels handled more gracefully.
+- V0.15
+  - Fixed truncation error in the battery display
+  - Cleaner display update code

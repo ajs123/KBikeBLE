@@ -69,6 +69,9 @@
 // The battery is measured through a divider providing half the voltage
 #define VBAT_MV_PER_LSB 7.03125  // 3600 mV ref / 1024 steps * 2.0 divider ratio
 
+// Round for positive numbers
+#define roundpos(x) ((x) + 0.5)
+
 /********************************************************************************
    Options
  ********************************************************************************/
@@ -84,7 +87,7 @@
 #define POWERDOWN_TIME 1200 // Duration (sec) to suspend the main loop pending a crank interrupt
 #endif
 
-#define CONTRAST_FULL 255   // Full and reduced display brightness. These depend upon the display used.
+#define CONTRAST_FULL 128   // Full and reduced display brightness. These depend upon the display used.
 #define CONTRAST_DIM 0
 
 #define ANALOG_OVERSAMPLE 4 // Resistance measurements can be noisy!
@@ -191,6 +194,7 @@ void right_just(uint16_t number, int x, int y, int width)
 #define BUTTON 2
 #define BATT_POS_X 46
 #define BATT_POS_Y 0
+#define roundpct(pct, max) (((pct * max) + 50) / 100)    // Integer arithmetic rounded % of max
 void draw_batt(uint8_t pct)
 {
   display.drawFrame(BATT_POS_X, BATT_POS_Y, BWIDTH, BHEIGHT);                                   // Battery body
@@ -198,7 +202,7 @@ void draw_batt(uint8_t pct)
   display.setDrawColor(0);
   display.drawBox(BATT_POS_X + 2, BATT_POS_Y + 2, BWIDTH - 4, BHEIGHT - 4);
   display.setDrawColor(1);
-  display.drawBox(BATT_POS_X + 2, BATT_POS_Y + 2, pct * (BWIDTH - 4) / 100, (BHEIGHT - 4));     // Filled area proportional to charge estimate
+  display.drawBox(BATT_POS_X + 2, BATT_POS_Y + 2, roundpct(pct, (BWIDTH - 4)), (BHEIGHT - 4));     // Filled area proportional to charge estimate
 }
 
 #if (0) // not used
@@ -220,9 +224,9 @@ const char * rg_label = rg_labels[0];
 
 void display_numbers()
 {
-  uint16_t rg = gear_display ? inst_gear : round(resistance);
-  uint16_t pwr = round(power);
-  uint16_t cad = round(cadence);
+  uint16_t rg = gear_display ? inst_gear : roundpos(resistance);
+  uint16_t pwr = roundpos(power);
+  uint16_t cad = roundpos(cadence);
   if ( (cad != prev_cad) || (rg != prev_rg) || (pwr != prev_pwr) || (batt_pct != prev_batt) )
   {
     display.clearBuffer();
@@ -234,7 +238,7 @@ void display_numbers()
     display.setCursor(0, 100);
     display.print("WATTS");
 
-    draw_batt(round(batt_pct));
+    draw_batt(batt_pct);
 
     display.setFont(u8g2_font_helvB24_tn);
     right_just(cad, 10, 43, 18);
@@ -647,7 +651,7 @@ void format_power_data(void)
   //uint16_t revs = crank_count;
   //uint16_t et = ((crank_event_time & 0xFFFF) * 1024 / 1000) & 0xFFFF ; // uint32 millisec to uint16 1024ths
 
-  power_data.words[1] = round(power);
+  power_data.words[1] = roundpos(power);
   noInterrupts();  // crank_count and crank_ticks are set in the crank ISR
   power_data.words[2] = crank_count;
   power_data.words[3] = crank_ticks;
@@ -933,7 +937,7 @@ void lever_check()  // Moving the gear lever to the top switches the resistance/
   lever_state = (lever_state << 1) & 0b00000011 | (resistance > BRAKE) ;
   if (lever_state == 0b00000001) {
     gear_display = !gear_display;
-    rg_label = rg_labels[(int) gear_display];
+    rg_label = rg_labels[(int) !gear_display];
 #ifdef LEVER_EXTRAS
     LEVER_EXTRAS
 #endif
@@ -1083,7 +1087,6 @@ void serial_check(void)
   //     A - make new cal values active
   //     W - write cal values to file
 
-
   char cmd = serial_cmd();
   if (cmd < 0) return;
 
@@ -1163,6 +1166,10 @@ void bleuart_check(void)
     bleuart.write(ch);
   }
 }
+
+// The parser - calls the appropriate function; leaves argument parsing to that function
+// Credit to http://fundamental-code.com/interp/
+
 #endif
 
 void LED_flash(int times, int ms)
@@ -1211,7 +1218,7 @@ void loop()
   // Things that happens on every tick
   update_resistance();
 
-  #ifdef SERIAL
+  #ifdef USE_SERIAL
   serial_check();
   #endif
 
