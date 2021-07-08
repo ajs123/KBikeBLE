@@ -1,111 +1,71 @@
- /* Bluetooth console for Keiser M3 **********************************************************************************************
-   V0.14
-********************************************************************************************************************************/
-
-/*********************************************************************
-  Development started from the Adafruit HRM BLE example.
-**********************************************************************
-  This is an example for our nRF52 based Bluefruit LE modules
-
-  Pick one up today in the adafruit shop!
-
-  Adafruit invests time and resources providing this open source code,
-  please support Adafruit and open-source hardware by purchasing
-  products from Adafruit!
-
-  MIT license, check LICENSE for more information
-  All text above, and the splash screen below must be included in
-  any redistribution
+/* Bluetooth console for Keiser M3 **********************************
+    V0.15
 *********************************************************************/
 
-#include <bluefruit.h>   // nrf52 built-in bluetooth
-#include <U8g2lib.h>     // OLED library
-  #ifdef U8X8_HAVE_HW_SPI
-  #include <SPI.h>
-  #endif
-  #ifdef U8X8_HAVE_HW_I2C  // For this hardware (nrf52840) should just be able to include Wire.h
-  #include <Wire.h>
-  #endif
+#include <bluefruit.h> // nrf52 built-in bluetooth
+#include <U8g2lib.h>   // OLED library
+#ifdef U8X8_HAVE_HW_SPI
+#include <SPI.h>
+#endif
+#ifdef U8X8_HAVE_HW_I2C // For this hardware (nrf52840) should just be able to include Wire.h
+#include <Wire.h>
+#endif
 
+#include "options.h"            // Options of most interest to the end user
+#include "bike_interface.h"     // Defines the hardware connections to the bike
 #include "power_gear_tables.h"
 #include "calibration.h"
 
 /**********************************************************************
- * Configuration options
+ * Optional functions and debugging
  **********************************************************************/
 
-#define POWERSAVE 1      // Incorporate power-saving shutdown. 1 = use systemOff() function, otherwise just long delay()
 //#define USE_SERIAL     // Incorporate USB serial functions. Will attempt serial connection at startup.
-#define BLEUART          // Activates serial over BLE
-#define BLEBAS           // Activate BLE battery service
+#define BLEUART // Activates serial over BLE
+#define BLEBAS  // Activate BLE battery service
 
 //#define QUICKTIMEOUT     // Quick timeout options for testing power saving functions
-//#define DEBUG          // Activates debug code. Requires USE_SERIAL for any serial console bits.
+//#define DEBUG            // Activates debug code. Requires USE_SERIAL for any serial console bits.
 //#define LEVER_EXTRAS stopBLE(); // Anything here is inserted into lever_check(), usually to
                                   // avoid having to wait for timeouts.
-
-#if defined(USE_SERIAL) && defined(DEBUG)
-   #define DEBUG(x,l) Serial.print(x); Serial.print(l);
-#else
-   #define DEBUG(x,l)
+#ifdef QUICKTIMEOUT
+#define DIM_TIME 20       //60         // Duration (sec) of no pedaling to dim display (if supported)
+#define BLANK_TIME 30     //180      // Duration (sec) to blank display
+#define BLE_PS_TIME 30   //900    // Duration (sec) to turn off Bluetooth to save power. Will disconnect from Central after this time.
+#define POWERDOWN_TIME 40 //1200 // Duration (sec) to suspend the main loop pending a crank interrupt
 #endif
 
-/*********************************************************************
-   Keiser M3 interface through the RJ9 jack (standard colors)
-      Green  - CRANK_PIN - crank switch to ground (dry switch, not Hall effect)
-               To a digital input. Transient protection is recommended.
-      Black  - RESISTANCE_TOP - 10K magnet position sense pot high
-               Use a digital output so it can be turned off to save power
-      Red    - RESISTANCE_PIN - magnet position sense pot wiper
-               To an analog input channel
-      Yellow - GROUND - resistance sense pot low / crank switch low side
- *********************************************************************/
-//#define CRANK_PIN  7  // Pushbutton on the Adafruit nrf52840 Express, for debugging
-#define CRANK_PIN 9
-#define RESISTANCE_PIN A1
-#define RESISTANCE_TOP 10
-#define BATTERY_PIN    A6
+#if defined(USE_SERIAL) && defined(DEBUG)
+#define DEBUG(x, l) \
+  Serial.print(x);  \
+  Serial.print(l);
+#else
+#define DEBUG(x, l)
+#endif
+
+/************************************************************************
+ * Miscellany
+ ************************************************************************/
 
 // The battery is measured through a divider providing half the voltage
-#define VBAT_MV_PER_LSB 7.03125  // 3600 mV ref / 1024 steps * 2.0 divider ratio
+#define VBAT_MV_PER_LSB 7.03125 // 3600 mV ref / 1024 steps * 2.0 divider ratio
 
 // Round for positive numbers
 #define roundpos(x) ((x) + 0.5)
 
-/********************************************************************************
-   Options
- ********************************************************************************/
-#ifdef QUICKTIMEOUT
-#define DIM_TIME 20//60         // Duration (sec) of no pedaling to dim display (if supported)
-#define BLANK_TIME 30//180      // Duration (sec) to blank display
-#define BLE_OFF_TIME 30//900    // Duration (sec) to turn off Bluetooth to save power. Will disconnect from Central after this time.
-#define POWERDOWN_TIME 40//1200 // Duration (sec) to suspend the main loop pending a crank interrupt
-#else
-#define DIM_TIME 60         // Duration (sec) of no pedaling to dim display (if supported)
-#define BLANK_TIME 180      // Duration (sec) to blank display
-#define BLE_OFF_TIME 900    // Duration (sec) to turn off Bluetooth to save power. Will disconnect from Central after this time.
-#define POWERDOWN_TIME 1200 // Duration (sec) to suspend the main loop pending a crank interrupt
-#endif
-
-#define CONTRAST_FULL 128   // Full and reduced display brightness. These depend upon the display used.
-#define CONTRAST_DIM 0
-
 #define ANALOG_OVERSAMPLE 4 // Resistance measurements can be noisy!
-
-#define BLE_TX_POWER -12    // BLE transmit power in dBm
-// - nRF52840: -40, -20, -16, -12, -8, -4, 0, +2, +3, +4, +5, +6, +7, or +8
-#define BLE_LED_INTERVAL 1000  // ms
 
 // Pushing the gearshift lever to the top switches between display of Keiser gear number and display of % resistance
 uint8_t lever_state = 0b00000000;
-bool gear_display = true;
-#define BRAKE 100       // Edge of the valid range, less than the max reading
+bool gear_display = GEAR_DISPLAY;
+#define BRAKE 100 // Edge of the valid range, less than the max reading
 
 /********************************************************************************
    Globals
  ********************************************************************************/
 // BLE data blocks addressable as bytes for flags and words for data
-union ble_data_block {  // Used to set flag bytes (0, 1) and data uint16's (words 1, ...)
+union ble_data_block
+{ // Used to set flag bytes (0, 1) and data uint16's (words 1, ...)
   uint8_t bytes[2];
   uint16_t words[16];
 };
@@ -115,58 +75,59 @@ union ble_data_block power_data; // For the Cycling Power Measurement Characteri
 // Globals. Variable accessed in multiple places are declared here.
 // Those used only in specific functions are declared within or nearby.
 
-float cadence;                   // Pedal cadence, determined from crank event timing
-float power;                     // Power, calculated from resistance and cadence to match Keiser's estimates
-float bspeed;                    // Bike speed, required by FTMS, to be estimated from power and cadence. A real estimate is TO DO
-float resistance;                // Normalized resistance, determined from the eddy current brake magnet position
-float raw_resistance;            // Raw resistance measurement from the ADC. Global because it's reported in the serial monitor
-float res_offset;                // Cal fators - raw_resistance to normalized resistance
+float cadence;         // Pedal cadence, determined from crank event timing
+float power;           // Power, calculated from resistance and cadence to match Keiser's estimates
+float bspeed;          // Bike speed, required by FTMS, to be estimated from power and cadence. A real estimate is TO DO
+float resistance;      // Normalized resistance, determined from the eddy current brake magnet position
+float disp_resistance; // Resistance valued that's displayed (can be filtered)
+float raw_resistance;  // Raw resistance measurement from the ADC. Global because it's reported in the serial monitor
+float res_offset;      // Cal fators - raw_resistance to normalized resistance
 float res_factor;
 bool serial_present = false;
 //float resistance_sq;             // Used in both gear and power calcs if not using the lookup table
-uint8_t inst_gear;               // Gear number: Index into power tables and, optionally, displayed
-#if defined(POWERSAVE) && (POWERSAVE != 1)
-bool suspended;                  // Set to true when suspending the main loop
+uint8_t gear; // Gear number: Index into power tables and, optionally, displayed
+#if (POWERSAVE > 0) && (POWERSAVE != 1)
+bool suspended; // Set to true when suspending the main loop
 #endif
 
-uint8_t batt_pct;                 // Battery percentage charge
+uint8_t batt_pct; // Battery percentage charge
 
 volatile float inst_cadence = 0;        // Cadence calculated in the crank ISR
 volatile uint16_t crank_count = 0;      // Cumulative crank rotations - set by the crank sensor ISR, reported by CPS and used to determine cadence
 volatile uint32_t crank_event_time = 0; // Set to the most recent crank event time by the crank sensor ISR [ms]
 //volatile uint32_t last_change_time;   // Used in the crank sensor ISR for sensor debounce [ms]. Initialized to millis() in Setup().
-volatile bool new_crank_event = false;  // Set by the crank sensor ISR; cleared by the main loop
-volatile uint16_t crank_ticks;          // 1/1024 sec per tick crank clock, for Cycling Power Measurement [ticks]
+volatile bool new_crank_event = false; // Set by the crank sensor ISR; cleared by the main loop
+volatile uint16_t crank_ticks;         // 1/1024 sec per tick crank clock, for Cycling Power Measurement [ticks]
 
 //uint32_t prior_event_time = 0;          // Used in the main loop to hold the time of the last reported crank event [ms]
 
-bool ftm_active = true;          // Once a client connects with either service, we stop updating the other.
+bool ftm_active = true; // Once a client connects with either service, we stop updating the other.
 bool cp_active = true;
 
-uint8_t display_state = 2;          // Display state: 0 = off, 1 = dim, 2 = full on
+uint8_t display_state = 2; // Display state: 0 = off, 1 = dim, 2 = full on
 
 // U8G2 display instance. What goes here depends upon the specific display and interface. See U8G2 examples.
-U8G2_SH1106_128X64_NONAME_F_HW_I2C display(U8G2_R1, /* reset=*/ U8X8_PIN_NONE); // 128 x 64 SH1106 display on hardware I2C
+U8G2_SH1106_128X64_NONAME_F_HW_I2C display(U8G2_R1, /* reset=*/U8X8_PIN_NONE); // 128 x 64 SH1106 display on hardware I2C
 //U8G2_SH1106_128X64_WINSTAR_F_HW_I2C display(U8G2_R1, /* reset=*/ U8X8_PIN_NONE);
 //U8G2_SH1106_128X64_VCOMH0_F_HW_I2C display(U8G2_R1, /* reset=*/ U8X8_PIN_NONE); // Provides a wider setContrast() range but at the expense of uniformity when dimmed
 
 // FTMS Service Definitions
-BLEService        svc_ftms = BLEService(0x1826);                 // FiTness machine service
-BLECharacteristic char_ftm_feature = BLECharacteristic(0x2ACC);  // FiTness machine Feature characteristic
-BLECharacteristic char_bike_data = BLECharacteristic(0x2AD2);    // Indoor Bike Data characteristic
+BLEService svc_ftms = BLEService(0x1826);                       // FiTness machine service
+BLECharacteristic char_ftm_feature = BLECharacteristic(0x2ACC); // FiTness machine Feature characteristic
+BLECharacteristic char_bike_data = BLECharacteristic(0x2AD2);   // Indoor Bike Data characteristic
 
 // CPS Service Definitions
-BLEService        svc_cps = BLEService(0x1818);                    // Cycling Power Service
+BLEService svc_cps = BLEService(0x1818);                           // Cycling Power Service
 BLECharacteristic char_cp_feature = BLECharacteristic(0x2A65);     // Cycling Power Feature
 BLECharacteristic char_cp_measurement = BLECharacteristic(0x2A63); // Cycling Power Measurement
 BLECharacteristic char_sensor_loc = BLECharacteristic(0x2A5D);     // Sensor Location
 
-BLEDis bledis;    // DIS (Device Information Service) helper class instance
+BLEDis bledis; // DIS (Device Information Service) helper class instance
 #ifdef BLEBAS
-BLEBas blebas;    // BAS (Battery Service) helper class instance
+BLEBas blebas; // BAS (Battery Service) helper class instance
 #endif
 #ifdef BLEUART
-BLEUart bleuart;  // UART over BLE
+BLEUart bleuart; // UART over BLE
 #endif
 
 /*********************************************************************************
@@ -176,15 +137,18 @@ BLEUart bleuart;  // UART over BLE
 void display_setup(void)
 {
   display.begin();
+  display.setContrast(CONTRAST_FULL);
   //display.enableUTF8Print();  // Can leave this out if using no symbols
-  display.setFontMode(1);  // "Transparent": Character background not drawn (since we clear the display anyway)
+  display.setFontMode(1); // "Transparent": Character background not drawn (since we clear the display anyway)
 }
 
 void right_just(uint16_t number, int x, int y, int width)
 // This works for the current font, but it ought to count pixels rather than characters.
 {
-  if (number < 10) x = x + width;
-  if (number < 100) x = x + width;
+  if (number < 10)
+    x = x + width;
+  if (number < 100)
+    x = x + width;
   display.setCursor(x, y);
   display.print(number);
 }
@@ -194,24 +158,24 @@ void right_just(uint16_t number, int x, int y, int width)
 #define BUTTON 2
 #define BATT_POS_X 46
 #define BATT_POS_Y 0
-#define roundpct(pct, max) (((pct * max) + 50) / 100)    // Integer arithmetic rounded % of max
+#define roundpct(pct, max) (((pct * max) + 50) / 100) // Integer arithmetic rounded % of max
 void draw_batt(uint8_t pct)
 {
-  display.drawFrame(BATT_POS_X, BATT_POS_Y, BWIDTH, BHEIGHT);                                   // Battery body
-  display.drawBox(BATT_POS_X + BWIDTH, BATT_POS_Y + ((BHEIGHT - BUTTON) / 2), BUTTON, BUTTON);  // Battery "button"
+  display.drawFrame(BATT_POS_X, BATT_POS_Y, BWIDTH, BHEIGHT);                                  // Battery body
+  display.drawBox(BATT_POS_X + BWIDTH, BATT_POS_Y + ((BHEIGHT - BUTTON) / 2), BUTTON, BUTTON); // Battery "button"
   display.setDrawColor(0);
   display.drawBox(BATT_POS_X + 2, BATT_POS_Y + 2, BWIDTH - 4, BHEIGHT - 4);
   display.setDrawColor(1);
-  display.drawBox(BATT_POS_X + 2, BATT_POS_Y + 2, roundpct(pct, (BWIDTH - 4)), (BHEIGHT - 4));     // Filled area proportional to charge estimate
+  display.drawBox(BATT_POS_X + 2, BATT_POS_Y + 2, roundpct(pct, (BWIDTH - 4)), (BHEIGHT - 4)); // Filled area proportional to charge estimate
 }
 
 #if (0) // not used
 void update_batt(uint8_t pct)
 {
-  display.setDrawColor(0);                                                                    // Empty interior
+  display.setDrawColor(0); // Empty interior
   display.drawBox(BATT_POS_X + 2, BATT_POS_Y + 2, BWIDTH - 4, BHEIGHT - 4);
   display.setDrawColor(1);
-  display.drawBox(BATT_POS_X + 2, BATT_POS_Y + 2, pct * (BWIDTH - 4) / 100, (BHEIGHT - 4));     // Filled area proportional to charge estimate
+  display.drawBox(BATT_POS_X + 2, BATT_POS_Y + 2, pct * (BWIDTH - 4) / 100, (BHEIGHT - 4)); // Filled area proportional to charge estimate
 }
 #endif
 
@@ -219,15 +183,15 @@ uint16_t prev_cad = 0;
 uint16_t prev_rg = 0;
 uint16_t prev_pwr = 0;
 uint8_t prev_batt = 0;
-const char * rg_labels[2] = {"GEAR", "RES %"};
-const char * rg_label = rg_labels[0];
+const char *rg_labels[2] = {"GEAR", "RES %"};
+const char *rg_label = rg_labels[0];
 
 void display_numbers()
 {
-  uint16_t rg = gear_display ? inst_gear : roundpos(resistance);
+  uint16_t rg = gear_display ? gear : roundpos(disp_resistance);
   uint16_t pwr = roundpos(power);
   uint16_t cad = roundpos(cadence);
-  if ( (cad != prev_cad) || (rg != prev_rg) || (pwr != prev_pwr) || (batt_pct != prev_batt) )
+  if ((cad != prev_cad) || (rg != prev_rg) || (pwr != prev_pwr) || (batt_pct != prev_batt))
   {
     display.clearBuffer();
     display.setFont(u8g2_font_helvB10_tr);
@@ -258,56 +222,62 @@ void display_numbers()
   Analog input processing - resistance magnet position and battery
 * ********************************************************************************/
 
-void ADC_setup(void)               // Set up the ADC for ongoing resistance measurement
+void ADC_setup(void) // Set up the ADC for ongoing resistance measurement
 {
-  analogReference(AR_INTERNAL);   // 3.6V
+  analogReference(AR_INTERNAL); // 3.6V
   analogOversampling(ANALOG_OVERSAMPLE);
-  analogReadResolution(10);       // 10 bits for better gear delineation and for battery measurement
-  delay(1);                       // Let the ADC settle before any measurements. Only important if changing the reference or possibly resolution
+  analogReadResolution(10); // 10 bits for better gear delineation and for battery measurement
+  delay(1);                 // Let the ADC settle before any measurements. Only important if changing the reference or possibly resolution
 }
 
-float readVBAT(void)   // Compacted from the Adafruit example
+float readVBAT(void) // Compacted from the Adafruit example
 {
   float mvolts;
 
   mvolts = analogRead(BATTERY_PIN) * VBAT_MV_PER_LSB;
 
-  if (mvolts < 3300)                                  // LiPo model...
-    return 0;                                         //   Dead at 3.3V
-  if (mvolts < 3600)                                  //   Last 10% - linear from 3.3 - 3.6 V
+  if (mvolts < 3300) // LiPo model...
+    return 0;        //   Dead at 3.3V
+  if (mvolts < 3600) //   Last 10% - linear from 3.3 - 3.6 V
     return (mvolts - 3300) * 0.03333;
-  return min(10 + ((mvolts - 3600) * 0.15F ), 100);   //   10-100% - linear from 3.6 - 4.2 V
+  return min(10 + ((mvolts - 3600) * 0.15F), 100); //   10-100% - linear from 3.6 - 4.2 V
 }
 
 /*****************************************************************************************************
  * Gear and power determination
  *****************************************************************************************************/
 
-int gear_lookup(float resistance) 
+int gear_lookup(float resistance)
 {
-    int ix = inst_gear;                                               // The gear points to the top bound
-    
-    if (resistance >= gears[ix]) {                                    // If above the top bound, index up
-        if (ix >= tablen) return tablen;                              // But not if already at the top
-            for ( ; (resistance > gears[++ix]) && (ix < tablen); );   // Index up until resistance <= top bound or at end of the table 
-        return ix;
-    } else {
-        for ( ; (resistance < gears[--ix]) && (ix > 0); );            // Index down until resistance >= bottom bound or at end of table
-        return ++ix;                                                  // Decremented index is pointing to the bottom bound, so add 1
-    } 
+  int ix = gear; // The gear points to the top bound
+
+  if (resistance >= gears[ix])
+  { // If above the top bound, index up
+    if (ix >= tablen)
+      return tablen; // But not if already at the top
+    for (; (resistance > gears[++ix]) && (ix < tablen);)
+      ; // Index up until resistance <= top bound or at end of the table
+    return ix;
+  }
+  else
+  {
+    for (; (resistance < gears[--ix]) && (ix > 0);)
+      ;          // Index down until resistance >= bottom bound or at end of table
+    return ++ix; // Decremented index is pointing to the bottom bound, so add 1
+  }
 }
 
 float sinterp(const float x_ref[], const float y_ref[], const float slopes[], int index, float x)
 {
-    float x1 = x_ref[index - 1];           // Index points to the top bound
-    float y1 = y_ref[index - 1]; 
-    return y1 + (x - x1) * slopes[index];  // Slope[index] is the slopes of the trailing interval
+  float x1 = x_ref[index - 1]; // Index points to the top bound
+  float y1 = y_ref[index - 1];
+  return y1 + (x - x1) * slopes[index]; // Slope[index] is the slopes of the trailing interval
 }
 
 /*********************************************************************************
   Bluetooth
      Set up and add services.
-     Bluetooth is started at reset. In the absence of pedaling for BLE_OFF_TIME sec,
+     Bluetooth is started at reset. In the absence of pedaling for BLE_PS_TIME sec,
      disconnect if connected and stop advertising. Pedal events (wakeup) restart
      advertising.
 * ********************************************************************************/
@@ -321,28 +291,28 @@ void startAdv(void)
   //      B2   - Flags                        - UINT8  - 1 byte   = 0x01   (Machine available)
   //      B3-4 - Fitness Machine Type         - UINT16 - 2 bytes  = 0x0020 (Indoor bike supported (bit 5))
 
-  uint8_t FTMS_Adv_Data[5] = { 0x26, 0x18, 0x01, 0x20, 0x00 };
+  uint8_t FTMS_Adv_Data[5] = {0x26, 0x18, 0x01, 0x20, 0x00};
 
-  Bluefruit.Advertising.addService(svc_ftms, svc_cps);      // Advertise the services
-  Bluefruit.Advertising.addData(0x16, FTMS_Adv_Data, 5);    // Required data field for FTMS
+  Bluefruit.Advertising.addService(svc_ftms, svc_cps);   // Advertise the services
+  Bluefruit.Advertising.addData(0x16, FTMS_Adv_Data, 5); // Required data field for FTMS
 
-  #ifdef BLEUART
+#ifdef BLEUART
   Bluefruit.Advertising.addService(bleuart);
-  #endif
+#endif
 
   Bluefruit.Advertising.addFlags(BLE_GAP_ADV_FLAGS_LE_ONLY_GENERAL_DISC_MODE);
   Bluefruit.Advertising.addTxPower();
 
-  Bluefruit.Advertising.addName();                 // Include name
+  Bluefruit.Advertising.addName(); // Include name
 
   Bluefruit.Advertising.restartOnDisconnect(true); // Enable auto advertising if disconnected
   Bluefruit.Advertising.setInterval(32, 244);      // Fast mode 20 ms, slow mode 152.5 ms, in unit of 0.625 ms
                                                    // We can be pretty aggressive since BLE will turn off when not in use
   // For recommended advertising interval
   // https://developer.apple.com/library/content/qa/qa1931/_index.html
-  Bluefruit.Advertising.setFastTimeout(30);        // number of seconds in fast mode
+  Bluefruit.Advertising.setFastTimeout(30); // number of seconds in fast mode
 
-  Bluefruit.Advertising.start(0);                  // 0 = Don't stop advertising after n seconds
+  Bluefruit.Advertising.start(0); // 0 = Don't stop advertising after n seconds
 }
 
 void stopBLE(void)
@@ -360,7 +330,8 @@ void stopBLE(void)
 
 void restartBLE(void)
 {
-  if ( !Bluefruit.connected(0) && !Bluefruit.Advertising.isRunning()) {
+  if (!Bluefruit.connected(0) && !Bluefruit.Advertising.isRunning())
+  {
     DEBUG("Restarting BLE", "\n")
     Bluefruit.Advertising.start(0);
   }
@@ -414,11 +385,11 @@ void setupFTMS(void)
   char_ftm_feature.setProperties(CHR_PROPS_READ);
   char_ftm_feature.setPermission(SECMODE_OPEN, SECMODE_NO_ACCESS);
   char_ftm_feature.setFixedLen(4);
-  char_ftm_feature.setCccdWriteCallback(ftm_cccd_callback);  // Optionally capture CCCD updates
+  char_ftm_feature.setCccdWriteCallback(ftm_cccd_callback); // Optionally capture CCCD updates
 
   char_ftm_feature.begin();
 
-  uint8_t ftmf_data[4] = { 0b00000010, 0b01000000, 0b00000000, 0b00000000 };
+  uint8_t ftmf_data[4] = {0b00000010, 0b01000000, 0b00000000, 0b00000000};
   char_ftm_feature.write(ftmf_data, 4);
 
   // Configure the Indoor Bike Data characteristic - See 4.9.1 IN  FTMS_V1.0.pdf
@@ -504,7 +475,7 @@ void setupCPS(void)
   // B3
   //  .0-7 - Reserved
 
-  uint8_t cpf_data[4] = { 0x0, 0x0, 0x0, 0x0 };
+  uint8_t cpf_data[4] = {0x0, 0x0, 0x0, 0x0};
   char_cp_feature.setProperties(CHR_PROPS_READ);
   char_cp_feature.setPermission(SECMODE_OPEN, SECMODE_NO_ACCESS);
   char_cp_feature.setFixedLen(4);
@@ -517,7 +488,7 @@ void setupCPS(void)
   // Fixed len = 4
   //
   // 0x01, 0x00, 0x00, 0x00 = "Other"
-  uint8_t cl_data[4] = { 0x01, 0x00, 0x00, 0x00 };
+  uint8_t cl_data[4] = {0x01, 0x00, 0x00, 0x00};
   char_sensor_loc.setProperties(CHR_PROPS_READ);
   char_sensor_loc.setPermission(SECMODE_OPEN, SECMODE_NO_ACCESS);
   char_sensor_loc.setFixedLen(4);
@@ -534,20 +505,19 @@ void setupCPS(void)
   char_cp_measurement.setProperties(CHR_PROPS_NOTIFY);
   char_cp_measurement.setPermission(SECMODE_OPEN, SECMODE_NO_ACCESS);
   char_cp_measurement.setFixedLen(8);
-  char_cp_measurement.setCccdWriteCallback(cps_cccd_callback);  // Optionally capture CCCD updates
+  char_cp_measurement.setCccdWriteCallback(cps_cccd_callback); // Optionally capture CCCD updates
   char_cp_measurement.begin();
 
-  power_data.bytes[0] = 0x20;  // Won't change
+  power_data.bytes[0] = 0x20; // Won't change
   power_data.bytes[1] = 0.00;
-
 }
 
 void connect_callback(uint16_t conn_handle)
 {
   // Get the reference to current connection
-  BLEConnection* connection = Bluefruit.Connection(conn_handle);
+  BLEConnection *connection = Bluefruit.Connection(conn_handle);
 
-  char central_name[32] = { 0 };
+  char central_name[32] = {0};
   connection->getPeerName(central_name, sizeof(central_name));
 
   //Serial.print("Connected to ");
@@ -570,8 +540,8 @@ void connect_callback(uint16_t conn_handle)
 */
 void disconnect_callback(uint16_t conn_handle, uint8_t reason)
 {
-  (void) conn_handle;
-  (void) reason;
+  (void)conn_handle;
+  (void)reason;
 
   //Serial.print("Disconnected, reason = 0x"); Serial.println(reason, HEX);
   //Serial.println("Advertising!");
@@ -581,7 +551,7 @@ void disconnect_callback(uint16_t conn_handle, uint8_t reason)
   cp_active = true;
 }
 
-void ftm_cccd_callback(uint16_t conn_hdl, BLECharacteristic* chr, uint16_t cccd_value) // Notify callback for FTM characteristic
+void ftm_cccd_callback(uint16_t conn_hdl, BLECharacteristic *chr, uint16_t cccd_value) // Notify callback for FTM characteristic
 {
   // Display the raw request packet
   //Serial.print("FTM CCCD Updated: ");
@@ -592,17 +562,21 @@ void ftm_cccd_callback(uint16_t conn_hdl, BLECharacteristic* chr, uint16_t cccd_
   // Check the characteristic this CCCD update is associated with in case
   // this handler is used for multiple CCCD records.
   // Because we use separate callbacks, we probably do not need these conditionals.
-  if (chr->uuid == char_bike_data.uuid) {
-    if (chr->notifyEnabled(conn_hdl)) {
+  if (chr->uuid == char_bike_data.uuid)
+  {
+    if (chr->notifyEnabled(conn_hdl))
+    {
       //Serial.println("Indoor Bike Data 'Notify' enabled");
-      cp_active = false;  // Turn off notify() updates to the other characteristic
-    } else {
+      cp_active = false; // Turn off notify() updates to the other characteristic
+    }
+    else
+    {
       //Serial.println("Indoor Bike Data 'Notify' disabled");
     }
   }
 }
 
-void cps_cccd_callback(uint16_t conn_hdl, BLECharacteristic* chr, uint16_t cccd_value) // Notify callback for CPS characteristic
+void cps_cccd_callback(uint16_t conn_hdl, BLECharacteristic *chr, uint16_t cccd_value) // Notify callback for CPS characteristic
 {
   // Display the raw request packet
   //Serial.print("CPS CCCD Updated: ");
@@ -613,11 +587,15 @@ void cps_cccd_callback(uint16_t conn_hdl, BLECharacteristic* chr, uint16_t cccd_
   // Check the characteristic this CCCD update is associated with in case
   // this handler is used for multiple CCCD records.
   // Because we use separate callbacks, we probably do not need these conditionals.
-  if (chr->uuid == char_cp_measurement.uuid) {
-    if (chr->notifyEnabled(conn_hdl)) {
+  if (chr->uuid == char_cp_measurement.uuid)
+  {
+    if (chr->notifyEnabled(conn_hdl))
+    {
       //Serial.println("Cycling Power Measurement 'Notify' enabled");
-      ftm_active = false;  // Turn off notify() updates to the other characteristic
-    } else {
+      ftm_active = false; // Turn off notify() updates to the other characteristic
+    }
+    else
+    {
       //Serial.println("Cycling Power Measurement 'Notify' disabled");
     }
   }
@@ -652,11 +630,10 @@ void format_power_data(void)
   //uint16_t et = ((crank_event_time & 0xFFFF) * 1024 / 1000) & 0xFFFF ; // uint32 millisec to uint16 1024ths
 
   power_data.words[1] = roundpos(power);
-  noInterrupts();  // crank_count and crank_ticks are set in the crank ISR
+  noInterrupts(); // crank_count and crank_ticks are set in the crank ISR
   power_data.words[2] = crank_count;
   power_data.words[3] = crank_ticks;
   interrupts();
-
 }
 
 /*********************************************************************************
@@ -715,24 +692,26 @@ const uint32_t MIN_INACTIVE = 300; // milliseconds (corresponds to 200 rpm)
 void crank_callback()
 {
   //uint32_t now = millis(); // millis() is calculated from the FreeRTOS tick count and rate, so just use the tick count
-  uint32_t now = xTaskGetTickCountFromISR();    // This depends upon the default tick interval of 1/1024 sec
+  uint32_t now = xTaskGetTickCountFromISR(); // This depends upon the default tick interval of 1/1024 sec
   uint32_t dt = now - crank_event_time;
-  
-  if (dt < MIN_INACTIVE) return;  
 
-  #if defined(POWERSAVE) && (POWERSAVE != 1)
-  if (suspended) resume();   
-  #endif
+  if (dt < MIN_INACTIVE)
+    return;
+
+#if (POWERSAVE > 0) && (POWERSAVE != 1)
+  if (suspended)
+    resume();
+#endif
 
   // The following are needed for the Cycling Power Measurement characteristic
-  crank_count++;                                 // Accumulated crank rotationst
+  crank_count++; // Accumulated crank rotationst
   //crank_ticks += min(dt * 1024 / 1000, 0xFFFF);  // Crank event clock in 1/1024 sec ticks
   crank_ticks = now & 0xFFFF;
 
   crank_event_time = now;
-  new_crank_event = true;     // Tell the main loop that there is new crank data
+  new_crank_event = true; // Tell the main loop that there is new crank data
   //inst_cadence = 60000 / dt;  // This used to be done in the main loop
-  inst_cadence = 61440 / dt;  // RPM = 60 / ( dt * 1000/1024 );
+  inst_cadence = 61440 / dt; // RPM = 60 / ( dt * 1000/1024 );
 }
 
 /********************************************************************************
@@ -740,7 +719,7 @@ void crank_callback()
  ********************************************************************************/
 void init_cal()
 {
-  res_offset = RESISTANCE_OFFSET;  // Later, these will be read from a file if present
+  res_offset = RESISTANCE_OFFSET; // Later, these will be read from a file if present
   res_factor = RESISTANCE_FACTOR;
 }
 
@@ -749,7 +728,8 @@ void setup()
 #ifdef USE_SERIAL
   Serial.begin(115200);
   uint16_t ticks;
-  for (ticks = 1000; !Serial && (ticks > 0); ticks--) delay(10); // Serial, if present, takes some time to connect
+  for (ticks = 1000; !Serial && (ticks > 0); ticks--)
+    delay(10); // Serial, if present, takes some time to connect
   if (Serial)
   {
     serial_present = true;
@@ -780,28 +760,28 @@ void setup()
   bledis.setModel("Bluefruit Feather52");
   bledis.begin();
 
-  // Start the BLE Battery Service and set it to 100%
-  //  Serial.println("Configuring the Battery Service");
-  #ifdef BLEBAS
+// Start the BLE Battery Service and set it to 100%
+//  Serial.println("Configuring the Battery Service");
+#ifdef BLEBAS
   blebas.begin();
-  #endif
+#endif
   //  blebas.write(100);
 
   // Setup the FiTness Machine and Cycling Power services
   setupFTMS();
   setupCPS();
 
-  // Start the BLEUart service
-  #ifdef BLEUART
+// Start the BLEUart service
+#ifdef BLEUART
   bleuart.begin();
-  #endif
+#endif
 
   // Setup the advertising packet(s)
   startAdv();
 
   //Serial.println("Advertising");
 
-  // Crank sensing. A falling edge (switch closure) triggers the interrupt. This counts as a crank event (rotation) 
+  // Crank sensing. A falling edge (switch closure) triggers the interrupt. This counts as a crank event (rotation)
   // if it's been long enough since the last event. The rider could conceivably initiate faux rotations by holding
   // the crank right at a certain spot, but there are similar risks with any scheme.
   crank_event_time = millis();
@@ -829,7 +809,7 @@ void setup()
  *   - Otherwise, try :-) to minimize power used
  * See the notes in each section
  *********************************************************************************************/
-#ifdef POWERSAVE
+#if (POWERSAVE > 0)
 #if (POWERSAVE == 1)
 /*
 Power down until reset. Reset is by a selected level (not edge) on the crank switch GPIO pin.
@@ -848,30 +828,32 @@ less, but not zero, current; (3) a very weak external pullup.
 */
 void turnOff(uint32_t pin, uint8_t wake_logic)
 {
-//  for(int i=0; i<8; i++)
-//  {
-//    NRF_POWER->RAM[i].POWERCLR = 0x03UL;
-//  }
+  //  for(int i=0; i<8; i++)
+  //  {
+  //    NRF_POWER->RAM[i].POWERCLR = 0x03UL;
+  //  }
 
   pin = g_ADigitalPinMap[pin];
 
-  if ( wake_logic )
+  if (wake_logic)
   {
     //Original systemOff() uses NRF_GPIO_PIN_PULLDOWN here
     nrf_gpio_cfg_sense_input(pin, NRF_GPIO_PIN_PULLUP, NRF_GPIO_PIN_SENSE_HIGH);
-  }else
+  }
+  else
   {
     nrf_gpio_cfg_sense_input(pin, NRF_GPIO_PIN_PULLUP, NRF_GPIO_PIN_SENSE_LOW);
   }
 
   uint8_t sd_en;
-  (void) sd_softdevice_is_enabled(&sd_en);
+  (void)sd_softdevice_is_enabled(&sd_en);
 
   // Enter System OFF state
-  if ( sd_en )
+  if (sd_en)
   {
     sd_power_system_off();
-  }else
+  }
+  else
   {
     NRF_POWER->SYSTEMOFF = 1;
   }
@@ -879,19 +861,19 @@ void turnOff(uint32_t pin, uint8_t wake_logic)
 
 void suspend()
 {
-  digitalWrite(RESISTANCE_TOP, LOW);   // De-energize the resistance pot
-//  if (digitalRead(CRANK_PIN)) LED_flash(500, 1); else LED_flash(500, 3);
-  turnOff(CRANK_PIN, !digitalRead(CRANK_PIN)); 
+  digitalWrite(RESISTANCE_TOP, LOW); // De-energize the resistance pot
+                                     //  if (digitalRead(CRANK_PIN)) LED_flash(500, 1); else LED_flash(500, 3);
+  turnOff(CRANK_PIN, !digitalRead(CRANK_PIN));
 }
 #endif
 #else
 void suspend()
 {
-  digitalWrite(RESISTANCE_TOP, LOW);   // De-energize the resistance pot
-  //suspendLoop();                     // Suspend the main loop(). Bur resumeLoop() doesn't seem to work.      
+  digitalWrite(RESISTANCE_TOP, LOW); // De-energize the resistance pot
+  //suspendLoop();                     // Suspend the main loop(). Bur resumeLoop() doesn't seem to work.
   //sd_softdevice_disable();           // May need to do this, then re-initialize BLE on restart
   //sd_power_system_off();
-  suspended = true;                    // Setting this causes waitForEvent() in the main loop.
+  suspended = true; // Setting this causes waitForEvent() in the main loop.
 }
 
 void resume()
@@ -924,7 +906,7 @@ void resume()
 #define BATT_TICKS 60     // Battery check every __ ticks
 #define DEFAULT_TICKS 2   // Default stuff every __ ticks
 
-uint8_t ticker = 0;       // Ticker inits to zero, also is reset under certain circumstances
+uint8_t ticker = 0; // Ticker inits to zero, also is reset under certain circumstances
 uint16_t last_crank_count = 0;
 uint8_t crank_still_timer = 3; // No pedaling is defined as this many crank checks with no event
 uint16_t stop_time;
@@ -932,12 +914,13 @@ uint16_t stop_time;
 //uint8_t prev_resistance = 0;  // Display updates are a bit expensive, so update only when needed
 //bool need_display_update;
 
-void lever_check()  // Moving the gear lever to the top switches the resistance/gear display mode
+void lever_check() // Moving the gear lever to the top switches the resistance/gear display mode
 {
-  lever_state = (lever_state << 1) & 0b00000011 | (resistance > BRAKE) ;
-  if (lever_state == 0b00000001) {
+  lever_state = (lever_state << 1) & 0b00000011 | (resistance > BRAKE);
+  if (lever_state == 0b00000001)
+  {
     gear_display = !gear_display;
-    rg_label = rg_labels[(int) !gear_display];
+    rg_label = rg_labels[(int)!gear_display];
 #ifdef LEVER_EXTRAS
     LEVER_EXTRAS
 #endif
@@ -946,11 +929,13 @@ void lever_check()  // Moving the gear lever to the top switches the resistance/
 
 void update_resistance()
 {
-  raw_resistance = analogRead(RESISTANCE_PIN);  // ADC set to oversample
-  resistance = max((raw_resistance - res_offset) * res_factor, 0);
-  inst_gear = gear_lookup(resistance);
+  raw_resistance = analogRead(RESISTANCE_PIN); // ADC set to oversample
+  float inst_resistance = max((raw_resistance - res_offset) * res_factor, 0);
+  resistance = (RESISTANCE_FILTER * resistance + inst_resistance) / (RESISTANCE_FILTER + 1);
+  gear = gear_lookup(resistance);
+  disp_resistance = (RESISTANCE_DISPLAY_FILTER * resistance + inst_resistance) / (RESISTANCE_DISPLAY_FILTER + 1);
   //resistance_sq = resistance * resistance;
-  //inst_gear = max(floor(GC + GB * resistance + GA * resistance_sq), 1) ;
+  //gear = max(floor(GC + GB * resistance + GA * resistance_sq), 1) ;
   lever_check();
   /* Ensure display update if the resistance has changed. 
      Now taken care of in display_numbers()
@@ -966,41 +951,40 @@ void update_resistance()
 void update_battery()
 {
   batt_pct = readVBAT();
-  #ifdef BLEBAS
+#ifdef BLEBAS
   blebas.write(batt_pct);
-  #endif
+#endif
 }
 
 void process_crank_event()
 {
-  // On a new crank event (flag set by the crank event ISR), update 
-  if (new_crank_event)
+  if (new_crank_event) // On a new crank event (flag set by the crank event ISR), update
   {
-    stop_time = 0;                  // Hold off power saving timeout
+    stop_time = 0; // Hold off power saving timeout
 
-    if (display_state < 2)          // Be sure the display is on
+    if (display_state < 2) // Be sure the display is on
     {
       display.setPowerSave(0);
       display.setContrast(CONTRAST_FULL);
       display_state = 2;
-      ticker = BATT_TICKS;          // Force battery check after the display has been off
+      ticker = BATT_TICKS; // Force battery check after the display has been off
     }
 
-    crank_still_timer = 0b100;     // Reset the shift register used to detect no pedaling
-                                   // 3 shifts = 3 seconds without an event indicates no pedaling
-                                   
-    restartBLE();                  // Be sure BLE is running
+    crank_still_timer = 0b100; // Reset the shift register used to detect no pedaling
+                               // 3 shifts = 3 seconds without an event indicates no pedaling
 
-    new_crank_event = false;     // Reset the flag
+    restartBLE(); // Be sure BLE is running
+
+    new_crank_event = false; // Reset the flag
 
     // Calculate cadence and clear the event flag
-//    noInterrupts(); // crank_count and crank_event_time mustn't change
-//    inst_cadence = (crank_count - last_crank_count) * 60000 / (crank_event_time - prior_event_time);
-//    last_crank_count = crank_count;
-//    prior_event_time = crank_event_time;
-//    interrupts();
+    //    noInterrupts(); // crank_count and crank_event_time mustn't change
+    //    inst_cadence = (crank_count - last_crank_count) * 60000 / (crank_event_time - prior_event_time);
+    //    last_crank_count = crank_count;
+    //    prior_event_time = crank_event_time;
+    //    interrupts();
   }
-  else
+  else // If no crank event, check timeouts
   {
     crank_still_timer = crank_still_timer >> 1;
     if (crank_still_timer == 0)
@@ -1009,14 +993,14 @@ void process_crank_event()
       stop_time++;
       switch (display_state)
       {
-      case 2:                        // Full brightness
+      case 2: // Full brightness
         if (stop_time > DIM_TIME)
         {
           display.setContrast(CONTRAST_DIM);
           display_state = 1;
         }
         break;
-      case 1:                        // Dimmed
+      case 1: // Dimmed
         if (stop_time > BLANK_TIME)
         {
           display.setPowerSave(1);
@@ -1024,30 +1008,47 @@ void process_crank_event()
         }
         break;
       }
-      if (stop_time == BLE_OFF_TIME)
-        stopBLE(); // Note == rather than >   - Don't waste time "re-stopping"
-#ifdef POWERSAVE
-      if (stop_time == POWERDOWN_TIME)
-        suspend();
+      if (Bluefruit.connected())
+      {
+        if (stop_time == BLE_PS_TIME) // Active BLE connection:
+        {                              // At BLE_PS_TIME, stop BLE and optionally suspend
+          stopBLE();
+#if (POWERSAVE > 0)
+          suspend();
 #endif
+        }
+      }
+      else                             // No active BLE connection:
+      {                                // At NO_BLE_PS_TIME, optionally suspend
+#if (POWERSAVE > 0)
+        if (stop_time == NO_BLE_PS_TIME)
+        {
+          Bluefruit.Advertising.stop(); // Ensure that we don't shut down with the BLE LED lit
+          suspend();
+        }
+#endif
+      }
     }
   }
 }
 
 void updateBLE()
 {
-  if ( Bluefruit.connected() ) {
+  if (Bluefruit.connected())
+  {
 
     // Update data (with notify()) for the active characteristics. Both are active until the client responds to one of them.
-    if (cp_active) {
+    if (cp_active)
+    {
       format_power_data();
-      char_cp_measurement.notify((uint8_t *) &power_data, 8);
+      char_cp_measurement.notify((uint8_t *)&power_data, 8);
     }
 
-    if (ftm_active) {
-      bspeed = 20 * cadence / 60;   // NOT A REAL CAL OF ANY KIND!
+    if (ftm_active)
+    {
+      bspeed = 20 * cadence / 60; // NOT A REAL CAL OF ANY KIND!
       format_bike_data(bspeed, cadence, resistance, power);
-      char_bike_data.notify((uint8_t *) &bike_data, 10);
+      char_bike_data.notify((uint8_t *)&bike_data, 10);
     }
   }
 }
@@ -1060,18 +1061,22 @@ int n;
 
 char serial_cmd()
 {
-  int cmd = Serial.read();                   // Grab the first character
-  while(Serial.available()) Serial.read();   // Flush the rest - eliminates type-ahead and CR/LF
+  int cmd = Serial.read(); // Grab the first character
+  while (Serial.available())
+    Serial.read(); // Flush the rest - eliminates type-ahead and CR/LF
   return cmd;
 }
 
 bool serial_confirm(String prompt, char expected)
 {
-  while(Serial.available()) Serial.read();   // Flush
+  while (Serial.available())
+    Serial.read(); // Flush
   Serial.print(prompt);
   n = Serial.readBytes(&input, 1);
-  if (n > 0) Serial.println(input);
-  while(Serial.available()) Serial.read();
+  if (n > 0)
+    Serial.println(input);
+  while (Serial.available())
+    Serial.read();
   return (input == expected);
 }
 
@@ -1088,72 +1093,79 @@ void serial_check(void)
   //     W - write cal values to file
 
   char cmd = serial_cmd();
-  if (cmd < 0) return;
+  if (cmd < 0)
+    return;
 
-  switch(cmd) {
-    case 'R' :
-       Serial.print("\nRaw R ");
-       Serial.println(raw_resistance);
-       break;
-    case 'O' :
-       Serial.print("\nOffset ");
-       Serial.println(res_offset, 2);
-       break;
-    case 'F' :
-       Serial.print("\nFactor ");
-       Serial.println(res_factor, 4);
-       break;
-    case 'C' :
-       Serial.print("\nEnter cal...\n   --> New slope --> ");
-       new_factor = Serial.parseFloat(SKIP_WHITESPACE);
-       if (new_factor == 0) {
-        Serial.println(" ... timeout\n");
-        break;
-       }
-       Serial.println(new_factor);
-       Serial.print("   --> New intercept --> ");
-       new_offset = Serial.parseFloat(SKIP_WHITESPACE);
-       if (new_offset == 0) {
-        Serial.println(" ... timeout\n");
-        break;
-       }
-       Serial.println(new_offset);
-       Serial.println("Use A to activate.\n");
-       new_cal = true;
-       break;
-    case 'A' :
-       if (!new_cal) {
-        Serial.println("\nEnter cal before trying to activate.");
-        break;
-       }
-       Serial.println("\nReady to activate...");
-       Serial.print("   Factor ");
-       Serial.println(new_factor, 4);
-       Serial.print("   Offset ");
-       Serial.println(new_offset, 2);
-       if (!serial_confirm(" A to activate; any other key or 5 seconds to skip --> ", 'A')) {
-        Serial.println(" ... skipped\n");
-        break;
-       }
-       res_factor = new_factor;
-       res_offset = new_offset;
-       new_cal = false;
-       Serial.println("\n New cal factors active.\n");
-       break;
-    case 'W' :
-       Serial.println(" Ready to save cal...");
-       Serial.print("   Factor ");
-       Serial.println(res_factor, 4);
-       Serial.print("    OFFSET ");
-       Serial.println(res_offset, 2);
-       Serial.print(" W to write, or any other key or 5 seconds to skip -->");
-       if (!serial_confirm(" W to write; any other key or 5 seconds to skip --> ", 'W')) {
-        Serial.println(" ... skipped\n");
-        break;
-       }
-       //write_cal_file();
-       Serial.println("\n** If we had the filesystem set up, cal would have been written. **\n");
-       break;
+  switch (cmd)
+  {
+  case 'R':
+    Serial.print("\nRaw R ");
+    Serial.println(raw_resistance);
+    break;
+  case 'O':
+    Serial.print("\nOffset ");
+    Serial.println(res_offset, 2);
+    break;
+  case 'F':
+    Serial.print("\nFactor ");
+    Serial.println(res_factor, 4);
+    break;
+  case 'C':
+    Serial.print("\nEnter cal...\n   --> New slope --> ");
+    new_factor = Serial.parseFloat(SKIP_WHITESPACE);
+    if (new_factor == 0)
+    {
+      Serial.println(" ... timeout\n");
+      break;
+    }
+    Serial.println(new_factor);
+    Serial.print("   --> New intercept --> ");
+    new_offset = Serial.parseFloat(SKIP_WHITESPACE);
+    if (new_offset == 0)
+    {
+      Serial.println(" ... timeout\n");
+      break;
+    }
+    Serial.println(new_offset);
+    Serial.println("Use A to activate.\n");
+    new_cal = true;
+    break;
+  case 'A':
+    if (!new_cal)
+    {
+      Serial.println("\nEnter cal before trying to activate.");
+      break;
+    }
+    Serial.println("\nReady to activate...");
+    Serial.print("   Factor ");
+    Serial.println(new_factor, 4);
+    Serial.print("   Offset ");
+    Serial.println(new_offset, 2);
+    if (!serial_confirm(" A to activate; any other key or 5 seconds to skip --> ", 'A'))
+    {
+      Serial.println(" ... skipped\n");
+      break;
+    }
+    res_factor = new_factor;
+    res_offset = new_offset;
+    new_cal = false;
+    Serial.println("\n New cal factors active.\n");
+    break;
+  case 'W':
+    Serial.println(" Ready to save cal...");
+    Serial.print("   Factor ");
+    Serial.println(res_factor, 4);
+    Serial.print("    OFFSET ");
+    Serial.println(res_offset, 2);
+    Serial.print(" W to write, or any other key or 5 seconds to skip -->");
+    if (!serial_confirm(" W to write; any other key or 5 seconds to skip --> ", 'W'))
+    {
+      Serial.println(" ... skipped\n");
+      break;
+    }
+    //write_cal_file();
+    Serial.println("\n** If we had the filesystem set up, cal would have been written. **\n");
+    break;
   }
 }
 
@@ -1162,31 +1174,30 @@ void bleuart_check(void)
 {
   while (bleuart.available())
   {
-    uint8_t ch = (uint8_t) bleuart.read();
+    uint8_t ch = (uint8_t)bleuart.read();
     bleuart.write(ch);
   }
 }
-
-// The parser - calls the appropriate function; leaves argument parsing to that function
-// Credit to http://fundamental-code.com/interp/
 
 #endif
 
 void LED_flash(int times, int ms)
 {
-  for (int i = 0; i < times; i++) {
+  for (int i = 0; i < times; i++)
+  {
     digitalWrite(LED_RED, 1);
     delay(ms);
     digitalWrite(LED_RED, 0);
-    if (i < times-1) delay(ms);
+    if (i < times - 1)
+      delay(ms);
   }
 }
 
 void loop()
 {
-  #if defined(POWERSAVE) && (POWERSAVE != 1)
+#if (POWERSAVE > 0) && (POWERSAVE != 1)
   // If suspended for power saving, wait here. The CPU should stop in a low power state, then continue after a crank interrupt.
-  if (suspended) 
+  if (suspended)
   {
     //LED_flash(1, 500); // Show that we're here with 2 one-second flashes
 
@@ -1204,52 +1215,55 @@ void loop()
 
     //waitForEvent();  // This returns immediately since there's been an interrupt since the last call
     //waitForEvent();  // Appears also to return due to something else such as FreeRTOS tick interrupt
-    delay(5000);     // At least slow the loop down!
+    delay(5000); // At least slow the loop down!
     //LED_flash(2, 500); // Show that we're back with 3 one-second flashes
     return;
   }
 
-  // Otherwise, do what's needed based on the ticker value
-  #endif
+// Otherwise, do what's needed based on the ticker value
+#endif
 
-  //need_display_update = false;      // Various tasks can indicate that the display might need to be redrawn
-                                    // Actual redraw requires that content has changed, so this is of little benefit.
+  //need_display_update = false;    // Various tasks can indicate that the display might need to be redrawn
+  // Actual redraw requires that content has changed, so this is of little benefit.
 
   // Things that happens on every tick
   update_resistance();
 
-  #ifdef USE_SERIAL
+#ifdef USE_SERIAL
   serial_check();
-  #endif
+#endif
 
-  #ifdef BLEUART
+#ifdef BLEUART
   bleuart_check();
-  #endif
+#endif
 
   // Things happen at the default tick interval
-  if ((ticker % DEFAULT_TICKS) == 0) {
-    
+  if ((ticker % DEFAULT_TICKS) == 0)
+  {
+
     process_crank_event();
-    
+
     cadence = inst_cadence;
-    
-    float inst_power = max(sinterp(gears, power90, slopes, inst_gear, resistance) * ( PC2 + PB2 * cadence + PA2 * cadence * cadence), 0);
+
+    float inst_power = max(sinterp(gears, power90, slopes, gear, resistance) * (PC2 + PB2 * cadence + PA2 * cadence * cadence), 0);
     //float inst_power = max((PC1 + PB1 * resistance + PA1 * resistance_sq) * ( PC2 + PB2 * cadence + PA2 * cadence * cadence), 0);
     power = inst_power;
     //power = (power + inst_power) / 2;
-    
+
     //need_display_update = true;
     updateBLE();
   }
 
   // Things that happen on BATT_TICKS
-  if ((ticker % BATT_TICKS) == 0) {
+  if ((ticker % BATT_TICKS) == 0)
+  {
     update_battery();
   }
 
   // Final things, as needed, on every tick
   //if (need_display_update && (display_state > 0)) display_numbers();
-  if (display_state > 0) display_numbers();
+  if (display_state > 0)
+    display_numbers();
 
   ticker++;
   delay(TICK_INTERVAL);

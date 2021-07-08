@@ -10,7 +10,9 @@
   - De-mystify waitForEvent() behavior and related matters having to do with the nRF52 core and the FreeRTOS port (important only if unhappy with shutdown/reset)
   - If the hardware reset button is exposed, little harm in just shutting down
 - Consider using a different reference, e.g., Vdd ref for the pot to maintain cal near battery end of charge
-- Keeping more parameters or options in the filesystem- Another look at what needs to be recalculated under different circumstances. Right now, we check resistance twice per second, and recalculate power once per second regardless of whether resistance of cadence have changed. Twice per second, we update the display *if* any of the displayed numbers have changed. The code that checks for changes looks at all four numbers (battery, cadence, resistance/gear, power) each time, even though only resistance/gear might be the only quantity that could even in principle have changed. This is probably fine - as efficient as the alternatives - but worth one more look.
+- Keeping more parameters or options in the filesystem- 
+- Another look at what needs to be recalculated under different circumstances. Right now, we check resistance twice per second, and recalculate power once per second regardless of whether resistance of cadence have changed. Twice per second, we update the display *if* any of the displayed numbers have changed. The code that checks for changes looks at all four numbers (battery, cadence, resistance/gear, power) each time, even though only resistance/gear might be the only quantity that could even in principle have changed. This is probably fine - as efficient as the alternatives - but worth one more look.
+- A fresh look at stuff that depends upon FreeRTOS and other questions related to power usage and sleep/wake.
 - BLE Services
   - If continuing to support FTMS, implement a real model-based calc for speed (mph/kph) as a function of power and cadence. 
   - Either way, use globals rather than passed parameters for the data.
