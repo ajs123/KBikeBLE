@@ -43,3 +43,4 @@
   - Cleaner display update code
   - Options for filtering resistance readings to reduce noise
   - The power-saving timeout is now dependent upon whether there's a Bluetooth connection. This allows specification of a longer time that the user can walk away from the bike without ending a session.
+  - Fixed missing #ifdef by which serial port code was being compiled despite USE_SERIAL being undefined

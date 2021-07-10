@@ -2,6 +2,7 @@
 - Calibration items
   - Save calibration in littleFS
   - Automated sensor calibration, equivalent to Keiser's procedure
+- Crank timing: Init of crank_event_time needed in Setup()?
 - Console access
   - Bluetooth console instead of USB serial
   - Does USB or BLEUart console preclude need for bike-based cal triggers like Keiser's?

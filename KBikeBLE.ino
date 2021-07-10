@@ -519,18 +519,6 @@ void connect_callback(uint16_t conn_handle)
 
   char central_name[32] = {0};
   connection->getPeerName(central_name, sizeof(central_name));
-
-  //Serial.print("Connected to ");
-  //Serial.println(central_name);
-  //Serial.print("Connection handle ");
-  //Serial.println(conn_handle);  // Find out if this is simply 0!
-
-  // Once connected to central, apply voltage to the resistance sensing pot
-  // Now that we have a display, we no longer do this here
-  //pinMode(RESISTANCE_TOP, OUTPUT);
-  //  pinMode(RESISTANCE_BOTTOM, OUTPUT);
-  //digitalWrite(RESISTANCE_TOP, HIGH);
-  //  digitalWrite(RESISTANCE_BOTTOM, LOW);
 }
 
 /**
@@ -543,9 +531,6 @@ void disconnect_callback(uint16_t conn_handle, uint8_t reason)
   (void)conn_handle;
   (void)reason;
 
-  //Serial.print("Disconnected, reason = 0x"); Serial.println(reason, HEX);
-  //Serial.println("Advertising!");
-
   // Start over with both characteristics active
   ftm_active = true;
   cp_active = true;
@@ -553,12 +538,6 @@ void disconnect_callback(uint16_t conn_handle, uint8_t reason)
 
 void ftm_cccd_callback(uint16_t conn_hdl, BLECharacteristic *chr, uint16_t cccd_value) // Notify callback for FTM characteristic
 {
-  // Display the raw request packet
-  //Serial.print("FTM CCCD Updated: ");
-  //Serial.printBuffer(request->data, request->len);
-  //Serial.print(cccd_value);
-  //Serial.println("");
-
   // Check the characteristic this CCCD update is associated with in case
   // this handler is used for multiple CCCD records.
   // Because we use separate callbacks, we probably do not need these conditionals.
@@ -566,24 +545,16 @@ void ftm_cccd_callback(uint16_t conn_hdl, BLECharacteristic *chr, uint16_t cccd_
   {
     if (chr->notifyEnabled(conn_hdl))
     {
-      //Serial.println("Indoor Bike Data 'Notify' enabled");
       cp_active = false; // Turn off notify() updates to the other characteristic
     }
     else
     {
-      //Serial.println("Indoor Bike Data 'Notify' disabled");
     }
   }
 }
 
 void cps_cccd_callback(uint16_t conn_hdl, BLECharacteristic *chr, uint16_t cccd_value) // Notify callback for CPS characteristic
 {
-  // Display the raw request packet
-  //Serial.print("CPS CCCD Updated: ");
-  //Serial.printBuffer(request->data, request->len);
-  //Serial.print(cccd_value);
-  //Serial.println("");
-
   // Check the characteristic this CCCD update is associated with in case
   // this handler is used for multiple CCCD records.
   // Because we use separate callbacks, we probably do not need these conditionals.
@@ -591,12 +562,10 @@ void cps_cccd_callback(uint16_t conn_hdl, BLECharacteristic *chr, uint16_t cccd_
   {
     if (chr->notifyEnabled(conn_hdl))
     {
-      //Serial.println("Cycling Power Measurement 'Notify' enabled");
       ftm_active = false; // Turn off notify() updates to the other characteristic
     }
     else
     {
-      //Serial.println("Cycling Power Measurement 'Notify' disabled");
     }
   }
 }
@@ -761,7 +730,6 @@ void setup()
   bledis.begin();
 
 // Start the BLE Battery Service and set it to 100%
-//  Serial.println("Configuring the Battery Service");
 #ifdef BLEBAS
   blebas.begin();
 #endif
@@ -778,8 +746,6 @@ void setup()
 
   // Setup the advertising packet(s)
   startAdv();
-
-  //Serial.println("Advertising");
 
   // Crank sensing. A falling edge (switch closure) triggers the interrupt. This counts as a crank event (rotation)
   // if it's been long enough since the last event. The rider could conceivably initiate faux rotations by holding
@@ -798,6 +764,9 @@ void setup()
 
   // Set up the analog input for resistance measurement
   ADC_setup();
+
+  cadence = 4;
+  display_numbers();
 
   //sd_power_mode_set(NRF_POWER_MODE_LOWPWR);  //see https://forums.adafruit.com/viewtopic.php?f=24&t=128823&sid=4f70bc48daaf47bd752bf8d108291049&start=75
 }
@@ -865,14 +834,12 @@ void suspend()
                                      //  if (digitalRead(CRANK_PIN)) LED_flash(500, 1); else LED_flash(500, 3);
   turnOff(CRANK_PIN, !digitalRead(CRANK_PIN));
 }
-#endif
 #else
 void suspend()
 {
   digitalWrite(RESISTANCE_TOP, LOW); // De-energize the resistance pot
   //suspendLoop();                     // Suspend the main loop(). Bur resumeLoop() doesn't seem to work.
   //sd_softdevice_disable();           // May need to do this, then re-initialize BLE on restart
-  //sd_power_system_off();
   suspended = true; // Setting this causes waitForEvent() in the main loop.
 }
 
@@ -882,6 +849,7 @@ void resume()
   //resumeLoop();
   suspended = false;
 }
+#endif
 #endif
 
 /**********************************************************************************************
@@ -1053,6 +1021,8 @@ void updateBLE()
   }
 }
 
+#ifdef USE_SERIAL
+
 bool new_cal = false;
 float new_offset;
 float new_factor;
@@ -1168,6 +1138,7 @@ void serial_check(void)
     break;
   }
 }
+#endif
 
 #ifdef BLEUART
 void bleuart_check(void)
@@ -1215,6 +1186,7 @@ void loop()
 
     //waitForEvent();  // This returns immediately since there's been an interrupt since the last call
     //waitForEvent();  // Appears also to return due to something else such as FreeRTOS tick interrupt
+    vPortSuppressTicksAndSleep(5000);
     delay(5000); // At least slow the loop down!
     //LED_flash(2, 500); // Show that we're back with 3 one-second flashes
     return;
@@ -1248,7 +1220,6 @@ void loop()
     float inst_power = max(sinterp(gears, power90, slopes, gear, resistance) * (PC2 + PB2 * cadence + PA2 * cadence * cadence), 0);
     //float inst_power = max((PC1 + PB1 * resistance + PA1 * resistance_sq) * ( PC2 + PB2 * cadence + PA2 * cadence * cadence), 0);
     power = inst_power;
-    //power = (power + inst_power) / 2;
 
     //need_display_update = true;
     updateBLE();
@@ -1268,10 +1239,3 @@ void loop()
   ticker++;
   delay(TICK_INTERVAL);
 }
-
-/* The idle task is another documented approach to power saving. It is NOT clear that this should be necessary when using tickless idle.
-void vApplicationIdleHook( void )
-{
-  waitForEvent();
-}
-*/
