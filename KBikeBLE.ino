@@ -2,6 +2,7 @@
     V0.15
 *********************************************************************/
 
+#include <Arduino.h>
 #include <bluefruit.h> // nrf52 built-in bluetooth
 #include <U8g2lib.h>   // OLED library
 #ifdef U8X8_HAVE_HW_SPI
@@ -26,8 +27,10 @@
 
 //#define QUICKTIMEOUT     // Quick timeout options for testing power saving functions
 //#define DEBUG            // Activates debug code. Requires USE_SERIAL for any serial console bits.
-//#define LEVER_EXTRAS stopBLE(); // Anything here is inserted into lever_check(), usually to
-                                  // avoid having to wait for timeouts.
+
+// Anything here is inserted into lever_check(), usually to avoid having to wait for some condition 
+//#define LEVER_EXTRAS batt_pct = 19; batt_low = true;
+                                 
 #ifdef QUICKTIMEOUT
 #define DIM_TIME 20       //60         // Duration (sec) of no pedaling to dim display (if supported)
 #define BLANK_TIME 30     //180      // Duration (sec) to blank display
@@ -91,6 +94,11 @@ bool suspended; // Set to true when suspending the main loop
 #endif
 
 uint8_t batt_pct; // Battery percentage charge
+bool batt_low;    // Battery low
+
+#define TICK_INTERVAL 500 // ms
+uint8_t ticker = 0; // Ticker for the main loop scheduler - inits to zero, also is reset under certain circumstances
+
 
 volatile float inst_cadence = 0;        // Cadence calculated in the crank ISR
 volatile uint16_t crank_count = 0;      // Cumulative crank rotations - set by the crank sensor ISR, reported by CPS and used to determine cadence
@@ -163,10 +171,16 @@ void draw_batt(uint8_t pct)
 {
   display.drawFrame(BATT_POS_X, BATT_POS_Y, BWIDTH, BHEIGHT);                                  // Battery body
   display.drawBox(BATT_POS_X + BWIDTH, BATT_POS_Y + ((BHEIGHT - BUTTON) / 2), BUTTON, BUTTON); // Battery "button"
-  display.setDrawColor(0);
-  display.drawBox(BATT_POS_X + 2, BATT_POS_Y + 2, BWIDTH - 4, BHEIGHT - 4);
+  //display.setDrawColor(0);
+  //display.drawBox(BATT_POS_X + 2, BATT_POS_Y + 2, BWIDTH - 4, BHEIGHT - 4);
   display.setDrawColor(1);
   display.drawBox(BATT_POS_X + 2, BATT_POS_Y + 2, roundpct(pct, (BWIDTH - 4)), (BHEIGHT - 4)); // Filled area proportional to charge estimate
+}
+
+void blank_batt()
+{
+  display.setDrawColor(0);
+  display.drawBox(BATT_POS_X, BATT_POS_Y, BWIDTH + BUTTON, BHEIGHT);  // Erase the battery
 }
 
 #if (0) // not used
@@ -191,7 +205,7 @@ void display_numbers()
   uint16_t rg = gear_display ? gear : roundpos(disp_resistance);
   uint16_t pwr = roundpos(power);
   uint16_t cad = roundpos(cadence);
-  if ((cad != prev_cad) || (rg != prev_rg) || (pwr != prev_pwr) || (batt_pct != prev_batt))
+  if ((cad != prev_cad) || (rg != prev_rg) || (pwr != prev_pwr) || (batt_pct != prev_batt) || batt_low)
   {
     display.clearBuffer();
     display.setFont(u8g2_font_helvB10_tr);
@@ -202,7 +216,8 @@ void display_numbers()
     display.setCursor(0, 100);
     display.print("WATTS");
 
-    draw_batt(batt_pct);
+    if (!batt_low || (ticker % 2)) draw_batt(batt_pct);
+    //else blank_batt();
 
     display.setFont(u8g2_font_helvB24_tn);
     right_just(cad, 10, 43, 18);
@@ -664,7 +679,7 @@ void crank_callback()
   uint32_t now = xTaskGetTickCountFromISR(); // This depends upon the default tick interval of 1/1024 sec
   uint32_t dt = now - crank_event_time;
 
-  if (dt < MIN_INACTIVE)
+  if (dt < MIN_INACTIVE)     // Debounce: ignore crank events not spaced at least this far apart
     return;
 
 #if (POWERSAVE > 0) && (POWERSAVE != 1)
@@ -691,6 +706,8 @@ void init_cal()
   res_offset = RESISTANCE_OFFSET; // Later, these will be read from a file if present
   res_factor = RESISTANCE_FACTOR;
 }
+
+SoftwareTimer update_timer;
 
 void setup()
 {
@@ -750,7 +767,7 @@ void setup()
   // Crank sensing. A falling edge (switch closure) triggers the interrupt. This counts as a crank event (rotation)
   // if it's been long enough since the last event. The rider could conceivably initiate faux rotations by holding
   // the crank right at a certain spot, but there are similar risks with any scheme.
-  crank_event_time = millis();
+  crank_event_time = xTaskGetTickCountFromISR();
   pinMode(CRANK_PIN, INPUT_PULLUP);
   attachInterrupt(digitalPinToInterrupt(CRANK_PIN), crank_callback, FALLING);
 
@@ -765,10 +782,11 @@ void setup()
   // Set up the analog input for resistance measurement
   ADC_setup();
 
-  cadence = 4;
-  display_numbers();
+  update_timer.begin(TICK_INTERVAL, update);
+  update_timer.start();
+  suspendLoop();
 
-  //sd_power_mode_set(NRF_POWER_MODE_LOWPWR);  //see https://forums.adafruit.com/viewtopic.php?f=24&t=128823&sid=4f70bc48daaf47bd752bf8d108291049&start=75
+  sd_power_mode_set(NRF_POWER_MODE_LOWPWR);  //see https://forums.adafruit.com/viewtopic.php?f=24&t=128823&sid=4f70bc48daaf47bd752bf8d108291049&start=75
 }
 
 /*********************************************************************************************
@@ -791,7 +809,9 @@ Here, with the non-GPIO side of the crank switch hard wired to ground, we're stu
 Our copy of the stock systemOff() substitutes PULLUP for PULLDOWN when SENSE_HIGH is needed. 
 
 The compromise made is in battery usage: the closed switch with the 22K pullup consumes 0.15 mA
-continuously. Alternatives include (1) active control over the non-GPIO side of the switch, which
+continuously. The prototype system uses about 1.0 mA when shut down due to power still being applied
+to the nRF52840 and OLED display boards, so the additional 0.15 mA isn't terrible. 
+Alternatives include (1) active control over the non-GPIO side of the switch, which
 would affect the resistance measurements; (2) AC coupling of the switch (parallel RC - would consume)
 less, but not zero, current; (3) a very weak external pullup.  
 */
@@ -830,23 +850,22 @@ void turnOff(uint32_t pin, uint8_t wake_logic)
 
 void suspend()
 {
-  digitalWrite(RESISTANCE_TOP, LOW); // De-energize the resistance pot
-                                     //  if (digitalRead(CRANK_PIN)) LED_flash(500, 1); else LED_flash(500, 3);
-  turnOff(CRANK_PIN, !digitalRead(CRANK_PIN));
+  digitalWrite(RESISTANCE_TOP, LOW);            // De-energize the resistance pot
+  turnOff(CRANK_PIN, !digitalRead(CRANK_PIN));  // Shut down, with a change in the crank switch causing reset
 }
+
 #else
 void suspend()
 {
   digitalWrite(RESISTANCE_TOP, LOW); // De-energize the resistance pot
-  //suspendLoop();                     // Suspend the main loop(). Bur resumeLoop() doesn't seem to work.
-  //sd_softdevice_disable();           // May need to do this, then re-initialize BLE on restart
-  suspended = true; // Setting this causes waitForEvent() in the main loop.
+  update_timer.stop();
+  suspended = true;
 }
 
 void resume()
 {
   digitalWrite(RESISTANCE_TOP, HIGH);
-  //resumeLoop();
+  update_timer.start();
   suspended = false;
 }
 #endif
@@ -870,11 +889,9 @@ void resume()
    little (I think) benefit and it would make the code even more board-dependent.
  **********************************************************************************************/
 
-#define TICK_INTERVAL 500 // ms
 #define BATT_TICKS 60     // Battery check every __ ticks
 #define DEFAULT_TICKS 2   // Default stuff every __ ticks
 
-uint8_t ticker = 0; // Ticker inits to zero, also is reset under certain circumstances
 uint16_t last_crank_count = 0;
 uint8_t crank_still_timer = 3; // No pedaling is defined as this many crank checks with no event
 uint16_t stop_time;
@@ -905,20 +922,12 @@ void update_resistance()
   //resistance_sq = resistance * resistance;
   //gear = max(floor(GC + GB * resistance + GA * resistance_sq), 1) ;
   lever_check();
-  /* Ensure display update if the resistance has changed. 
-     Now taken care of in display_numbers()
-  uint8_t int_resistance = round(resistance);
-  if (prev_resistance != int_resistance) {
-    lever_check();
-    need_display_update = true;
-    prev_resistance = int_resistance;
-  }
-  */
 }
 
 void update_battery()
 {
   batt_pct = readVBAT();
+  batt_low = batt_pct < BATT_LOW;
 #ifdef BLEBAS
   blebas.write(batt_pct);
 #endif
@@ -978,7 +987,7 @@ void process_crank_event()
       }
       if (Bluefruit.connected())
       {
-        if (stop_time == BLE_PS_TIME) // Active BLE connection:
+        if (stop_time >= BLE_PS_TIME) // Active BLE connection:
         {                              // At BLE_PS_TIME, stop BLE and optionally suspend
           stopBLE();
 #if (POWERSAVE > 0)
@@ -989,7 +998,7 @@ void process_crank_event()
       else                             // No active BLE connection:
       {                                // At NO_BLE_PS_TIME, optionally suspend
 #if (POWERSAVE > 0)
-        if (stop_time == NO_BLE_PS_TIME)
+        if (stop_time >= NO_BLE_PS_TIME)
         {
           Bluefruit.Advertising.stop(); // Ensure that we don't shut down with the BLE LED lit
           suspend();
@@ -1163,42 +1172,14 @@ void LED_flash(int times, int ms)
       delay(ms);
   }
 }
-
 void loop()
 {
-#if (POWERSAVE > 0) && (POWERSAVE != 1)
-  // If suspended for power saving, wait here. The CPU should stop in a low power state, then continue after a crank interrupt.
-  if (suspended)
-  {
-    //LED_flash(1, 500); // Show that we're here with 2 one-second flashes
 
-    /* Fix for FPU interrupt erratum https://infocenter.nordicsemi.com/pdf/nRF52840_Rev_1_Errata_v1.0.pdf
-       This is included in port_cmsis_systick.c - vPortSuppressTicksAndSleep but it's not clear that the conditional
-       compilation is correct. Specifically, inclusion depends upon __FPU_USED which seems to be getting set to zero.
-       A bug report to Adafruit may be appropriate, after testing to be sure.
-       */
+};
 
-    //#if (__FPU_PRESENT == 1)                      // Originally tested __FPU_USED
-    //__set_FPSCR(__get_FPSCR() & ~(0x0000009F));
-    //(void) __get_FPSCR();
-    //NVIC_ClearPendingIRQ(FPU_IRQn);
-    //#endif
-
-    //waitForEvent();  // This returns immediately since there's been an interrupt since the last call
-    //waitForEvent();  // Appears also to return due to something else such as FreeRTOS tick interrupt
-    vPortSuppressTicksAndSleep(5000);
-    delay(5000); // At least slow the loop down!
-    //LED_flash(2, 500); // Show that we're back with 3 one-second flashes
-    return;
-  }
-
-// Otherwise, do what's needed based on the ticker value
-#endif
-
-  //need_display_update = false;    // Various tasks can indicate that the display might need to be redrawn
-  // Actual redraw requires that content has changed, so this is of little benefit.
-
-  // Things that happens on every tick
+void update(TimerHandle_t xTimerID)
+{
+// Things that happens on every tick
   update_resistance();
 
 #ifdef USE_SERIAL
@@ -1209,19 +1190,16 @@ void loop()
   bleuart_check();
 #endif
 
-  // Things happen at the default tick interval
+// Things happen at the default tick interval
   if ((ticker % DEFAULT_TICKS) == 0)
   {
-
     process_crank_event();
 
     cadence = inst_cadence;
-
     float inst_power = max(sinterp(gears, power90, slopes, gear, resistance) * (PC2 + PB2 * cadence + PA2 * cadence * cadence), 0);
     //float inst_power = max((PC1 + PB1 * resistance + PA1 * resistance_sq) * ( PC2 + PB2 * cadence + PA2 * cadence * cadence), 0);
     power = inst_power;
 
-    //need_display_update = true;
     updateBLE();
   }
 
@@ -1232,10 +1210,9 @@ void loop()
   }
 
   // Final things, as needed, on every tick
-  //if (need_display_update && (display_state > 0)) display_numbers();
   if (display_state > 0)
     display_numbers();
 
   ticker++;
-  delay(TICK_INTERVAL);
+  //delay(TICK_INTERVAL);
 }

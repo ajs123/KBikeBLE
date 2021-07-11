@@ -2,12 +2,14 @@
 - Calibration items
   - Save calibration in littleFS
   - Automated sensor calibration, equivalent to Keiser's procedure
-- Crank timing: Init of crank_event_time needed in Setup()?
 - Console access
   - Bluetooth console instead of USB serial
   - Does USB or BLEUart console preclude need for bike-based cal triggers like Keiser's?
+- Documentation
+  - More comprehensive writeup of calibration
+  - Tutorial how-to-build for less experienced folks
+  - Writeup on power consumption
 - Continued work on power savings
-  - Determine power use by the blanked display. The SH1106 controller claims 5 uA sleep mode current, but other parts may be using power. If this is significant, there could be benefit to switching off power to the display module.
   - De-mystify waitForEvent() behavior and related matters having to do with the nRF52 core and the FreeRTOS port (important only if unhappy with shutdown/reset)
   - If the hardware reset button is exposed, little harm in just shutting down
 - Consider using a different reference, e.g., Vdd ref for the pot to maintain cal near battery end of charge

@@ -44,6 +44,11 @@
 #define CONTRAST_FULL 127   // Full and reduced display brightness. These depend upon the display used.
 #define CONTRAST_DIM 0
 
+/* Low battery indicator - flashes when below this percentage.
+   This ought to be determined by the level at which the proper ADC reference is lost.
+*/
+#define BATT_LOW 20
+
 /* Display the Keiser gear number, or % resistance, at startup? 
    The alternative can always be chosen by moving the resistance lever to the top.
 */
