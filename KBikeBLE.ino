@@ -1,5 +1,5 @@
 /* Bluetooth console for Keiser M3 **********************************
-    V0.15
+    V0.16
 *********************************************************************/
 
 #include <Arduino.h>
@@ -26,7 +26,7 @@
 #define BLEBAS  // Activate BLE battery service
 
 //#define QUICKTIMEOUT     // Quick timeout options for testing power saving functions
-//#define DEBUG            // Activates debug code. Requires USE_SERIAL for any serial console bits.
+//#define DEBUGGING        // Activates debug code. Requires USE_SERIAL for any serial console bits.
 
 // Anything here is inserted into lever_check(), usually to avoid having to wait for some condition 
 //#define LEVER_EXTRAS batt_pct = 19; batt_low = true;
@@ -38,12 +38,25 @@
 #define POWERDOWN_TIME 40 //1200 // Duration (sec) to suspend the main loop pending a crank interrupt
 #endif
 
-#if defined(USE_SERIAL) && defined(DEBUG)
+#if defined(USE_SERIAL) && defined(DEBUGGING)
 #define DEBUG(x, l) \
   Serial.print(x);  \
   Serial.print(l);
 #else
 #define DEBUG(x, l)
+#endif
+
+#ifdef DEBUGGING // Stepwise startup to watch for power consumption
+uint8_t stepnum = 0;
+#define STEP(N) \
+  cadence = N; \
+  display_numbers(); \
+  delay(5000);
+#define DWAIT() \
+  delay(5000);
+#else
+#define STEP(N)
+#define DWAIT()
 #endif
 
 /************************************************************************
@@ -723,11 +736,17 @@ void setup()
   }
 #endif
 
+  DWAIT()
+
   display_setup();
 
   init_cal();
 
+  STEP(10)
+
   Bluefruit.begin();
+
+  STEP(20)
 
   // Set power - needs only to work in pretty close range
   Bluefruit.setTxPower(BLE_TX_POWER);
@@ -761,6 +780,8 @@ void setup()
   bleuart.begin();
 #endif
 
+STEP(30)
+
   // Setup the advertising packet(s)
   startAdv();
 
@@ -771,6 +792,8 @@ void setup()
   pinMode(CRANK_PIN, INPUT_PULLUP);
   attachInterrupt(digitalPinToInterrupt(CRANK_PIN), crank_callback, FALLING);
 
+STEP(40)
+
   // Apply voltage to the resistance pot
   pinMode(RESISTANCE_TOP, OUTPUT);
   digitalWrite(RESISTANCE_TOP, HIGH);
@@ -779,21 +802,21 @@ void setup()
   ftm_active = true;
   cp_active = true;
 
+STEP(50)
+
   // Set up the analog input for resistance measurement
   ADC_setup();
 
   update_timer.begin(TICK_INTERVAL, update);
   update_timer.start();
   suspendLoop();
-
-  sd_power_mode_set(NRF_POWER_MODE_LOWPWR);  //see https://forums.adafruit.com/viewtopic.php?f=24&t=128823&sid=4f70bc48daaf47bd752bf8d108291049&start=75
 }
 
 /*********************************************************************************************
  * Suspend (power save) 
  *   - de-energizes the resistance sense pot
  *   - If POWERSAVE == 1, powers the system down, with the crank switch configured as reset
- *   - Otherwise, try :-) to minimize power used
+ *   - Otherwise, stops the scheduled update() task
  * See the notes in each section
  *********************************************************************************************/
 #if (POWERSAVE > 0)
@@ -855,6 +878,10 @@ void suspend()
 }
 
 #else
+/* 
+  Enter the power save state by stopping the update() task. 
+  Resume by re-starting it just as in Setup().
+*/
 void suspend()
 {
   digitalWrite(RESISTANCE_TOP, LOW); // De-energize the resistance pot
@@ -872,7 +899,7 @@ void resume()
 #endif
 
 /**********************************************************************************************
-   Main loop()
+   Main "loop()"
 
    We define these periodic tasks:
      * Checking the resistance measurement. It helps the user for this to be updated 2/sec.
@@ -882,11 +909,16 @@ void resume()
      * Checking the battery. Every 30 sec seems like plenty.
      * Updating the display as needed.
 
-   We use a little scheduler that calls each function at the appropriate times. 
+   These are all handled by a single function, update(), which calls each individual function 
+   at the appropriate times. update() is scheduled as a recurring task in FreeRTOS which is part
+   of the Adafruit Arduino core for the nRF52840. This gives better performance (lower energy) than
+   using the traditional loop() with delay(), despite the FreeRTOS tickless idle mode by which
+   delay() ought to basically be a sleep().
 
-   The Adafruit board uses Open RTOS, and for minimal power we could use the RTOS scheduler.
-   However, Open RTOS already provides a delay() function that's basically a sleep, so there's
-   little (I think) benefit and it would make the code even more board-dependent.
+   To provide good responsiveness for the user, twice per second the bike resistance is measured 
+   and the display is updated if anything has changed. The battery level is measured every 30 seconds. 
+   Everything else - power calculation and updating Bluetooth are done once per second. These could be 
+   scheduled as three separate recurring tasks in FreeRTOS but that doesn't seem worth the trouble.
  **********************************************************************************************/
 
 #define BATT_TICKS 60     // Battery check every __ ticks
@@ -895,9 +927,6 @@ void resume()
 uint16_t last_crank_count = 0;
 uint8_t crank_still_timer = 3; // No pedaling is defined as this many crank checks with no event
 uint16_t stop_time;
-
-//uint8_t prev_resistance = 0;  // Display updates are a bit expensive, so update only when needed
-//bool need_display_update;
 
 void lever_check() // Moving the gear lever to the top switches the resistance/gear display mode
 {

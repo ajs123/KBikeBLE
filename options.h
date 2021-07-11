@@ -30,7 +30,7 @@
    Times are in approximate seconds. For convenience, use N * 60 to specify N minutes.
 */
 
-#define POWERSAVE  1           // Defines power save mode; 0 = none, 1 = shutdown, other = no shutdown
+#define POWERSAVE  2           // Defines power save mode; 0 = none, 1 = shutdown, other = no shutdown
 #define DIM_TIME        1 * 60 // Dim the display (effect depends upon the display)
 #define BLANK_TIME      3 * 60 // Blank the display
 #define NO_BLE_PS_TIME  5 * 60 // In absence of Bluetooth connection and POWERSAVE defined, enter power save mode

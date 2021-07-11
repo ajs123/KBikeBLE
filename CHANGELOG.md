@@ -44,4 +44,4 @@
   - Options for filtering resistance readings to reduce noise
   - The power-saving timeout is now dependent upon whether there's a Bluetooth connection. This allows specification of a longer time that the user can walk away from the bike without ending a session.
   - Fixed missing #ifdef by which serial port code was being compiled despite USE_SERIAL being undefined
-  - Replaced the main loop() with a scheduled task. If not choosing full shutdown for power save mode, the timer is stopped for power save and restarted when pedaling resumes.
+  - Replaced the main loop() with a scheduled task. If not choosing full shutdown for power save mode, the timer is stopped for power save and restarted when pedaling resumes. Power savings is essentially the same either way.
