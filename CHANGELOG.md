@@ -39,9 +39,13 @@
   - Added BLE battery service
   - Cleaned up display code: Whether to redraw is determined in the display function based on actual displayed values. Changes in GEAR / RES % labels handled more gracefully.
 - V0.15
+  - Replaced the main loop() with a scheduled task. If not choosing full shutdown for power save mode, the timer is stopped for power save and restarted when pedaling resumes. Power savings appears to be almost the same as with full shutdown.
+  - Options of most interest to end users are now in a separate options.h
+  - Low battery indicator (flashing battery icon)
   - Fixed truncation error in the battery display
   - Cleaner display update code
   - Options for filtering resistance readings to reduce noise
-  - The power-saving timeout is now dependent upon whether there's a Bluetooth connection. This allows specification of a longer time that the user can walk away from the bike without ending a session.
-  - Fixed missing #ifdef by which serial port code was being compiled despite USE_SERIAL being undefined
-  - Replaced the main loop() with a scheduled task. If not choosing full shutdown for power save mode, the timer is stopped for power save and restarted when pedaling resumes. Power savings is essentially the same either way.
+  - The power-saving timeout is now dependent upon whether there's a Bluetooth connection. If Bluetooth is connected, the user can walk away from the bike for a longer time without ending a session.
+  - Fixed missing #ifdef by which serial port code was being compiled in despite USE_SERIAL being undefined
+- V0.16
+  - 

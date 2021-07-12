@@ -1212,11 +1212,11 @@ void update(TimerHandle_t xTimerID)
   update_resistance();
 
 #ifdef USE_SERIAL
-  serial_check();
+  //serial_check();  // Can't do this here in its current form because it can take longer than the timer interval
 #endif
 
 #ifdef BLEUART
-  bleuart_check();
+  bleuart_check();  // Must be careful about what's done here - mustn't take longer than the timer interval
 #endif
 
 // Things happen at the default tick interval
