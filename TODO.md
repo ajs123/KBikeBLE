@@ -1,10 +1,8 @@
 ## TODO
 - Calibration items
   - Save calibration in littleFS
-  - Automated sensor calibration, equivalent to Keiser's procedure
 - Console access
-  - Bluetooth console instead of USB serial
-  - Does USB or BLEUart console preclude need for bike-based cal triggers like Keiser's?
+  - Option to use conventional USB serial instead of the spiffier BLE Uart service
 - Documentation
   - More comprehensive writeup of calibration
   - Tutorial how-to-build for less experienced folks

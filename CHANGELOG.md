@@ -52,3 +52,5 @@
     - Adafruit's Bluefruit Connect app works well. Be sure that the Uart function is set to include an end-of-line. The system won't care whether <return> or <newline> is used.
   - Calibration similar to Keiser's procedure, initiated through the *calibrate* command and with step-by-step prompts for using the calibration tool.
     - Calibration will not yet survive a reset. Saving parameters to nonvolatile memory (LittleFS) is next.
+- V0.17
+
