@@ -12,7 +12,8 @@
 // Normalized resistance (0-100 scale) is ( ADC reading - OFFSET ) * FACTOR
 // Normalized resistance will exceed 100% because there is magnet assembly excursion beyond the top of the range,
 //    prior to the mechanical brake contacting the flywheel, and at the bottom of the range as well.
-// These are default cals, used if the filesystem has nothing
+
+// These are default cals, used if the filesystem has nothing.
 // The factor shouldn't change unless there is a significant change in the total resistance of the sense pot,
 // the high side voltage, or the high side impedance.
 // The offset changes from bike to bike due to how the magnet assembly engages with the sense pot.

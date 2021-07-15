@@ -1400,14 +1400,13 @@ void cmd_res()
   {
     if (AWAITING_CONF())
     {
-      RESPOND("\n\nBe sure that the resistance lever is at the bottom (lowest gear).\n");
-      RESPOND("Rotate the flywheel so that the tool contacts the magnet assembly.\n");
+      RESPOND("\n\nPlace the calibration tool on the flywheel and rotate the flywheel so that the calibration tool contacts the magnet assembly.\n");
       delay_message(5, 1000);
       //base = analogRead(RESISTANCE_PIN);  // Baseline reading - should increase from here
-      RESPOND("\nRotate the magnet assembly by hand so that the magnet settles into the pocket in the cal tool.\n");
-      RESPOND("Do not use the lever!\n");
+      RESPOND("\nRotate the magnet assembly by hand so that the magnet settles into the pocket in the calibration tool.");
+      RESPOND(" Do not use the lever!\n");
       delay_message(5, 1000);
-      RESPOND("\nHold while readings are taken...\n");
+      RESPOND("\n\nHold while readings are taken...\n");
       uint32_t cal_reading = 0;
       for (uint8_t i = 10; i > 0; i--)
       {
@@ -1419,15 +1418,17 @@ void cmd_res()
       cal_reading /= 10;
       BLE_PRINT("Done. Average was %d.\n", cal_reading);
       new_offset = cal_reading - CALTOOL_RES/res_factor;
-      BLE_PRINT("The new offset is %.1f.\n", new_offset);
+      BLE_PRINT("\nThe new offset is %.1f.\n", new_offset);
       RESPOND("Use activate to have the bike use these values.\n\n");
       awaiting_conf = AWAITING_NONE;
   }
   else 
   {
       RESPOND("Enter the calibration procedure.\n");
-      RESPOND("If for any reason you need to change the cal factor, enter and activate it *before* proceeding.\n");
-      RESPOND("Have the calibration tool on the flywheel.\n");
+      RESPOND("This will set the offset to match the bike.\n");
+      RESPOND("If for any reason you need to change the factor, enter and activate it *before* proceeding.\n");
+      RESPOND("\nBe sure that the resistance lever is at the bottom (lowest gear)");
+      RESPOND(" and have the calibration tool ready to place on the flywheel.\n");
       RESPOND("Y to continue...");
       awaiting_conf = cmd_number;
       awaiting_timer = CONFIRMATION_TIMEOUT ;
