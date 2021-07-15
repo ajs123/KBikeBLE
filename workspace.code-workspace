@@ -10,6 +10,7 @@
 	"settings": {
 		"files.associations": {
 			"iostream": "cpp"
-		}
+		},
+		"telemetry.enableCrashReporter": false
 	}
 }

@@ -48,4 +48,7 @@
   - The power-saving timeout is now dependent upon whether there's a Bluetooth connection. If Bluetooth is connected, the user can walk away from the bike for a longer time without ending a session.
   - Fixed missing #ifdef by which serial port code was being compiled in despite USE_SERIAL being undefined
 - V0.16
-  - 
+  - Bluetooth command line interface for calibration and debugging functions. See serial_commands.h for the current command set.
+    - Adafruit's Bluefruit Connect app works well. Be sure that the Uart function is set to include an end-of-line. The system won't care whether <return> or <newline> is used.
+  - Calibration similar to Keiser's procedure, initiated through the *calibrate* command and with step-by-step prompts for using the calibration tool.
+    - Calibration will not yet survive a reset. Saving parameters to nonvolatile memory (LittleFS) is next.

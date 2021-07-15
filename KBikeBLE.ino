@@ -16,12 +16,14 @@
 #include "bike_interface.h"     // Defines the hardware connections to the bike
 #include "power_gear_tables.h"
 #include "calibration.h"
+#include "serial_commands.h"
 
 /**********************************************************************
  * Optional functions and debugging
  **********************************************************************/
 
 //#define USE_SERIAL     // Incorporate USB serial functions. Will attempt serial connection at startup.
+                         // CAREFUL! With 1/sec updates through a timer task, it must always finish in < 1 sec.
 #define BLEUART // Activates serial over BLE
 #define BLEBAS  // Activate BLE battery service
 
@@ -94,20 +96,22 @@ union ble_data_block power_data; // For the Cycling Power Measurement Characteri
 float cadence;         // Pedal cadence, determined from crank event timing
 float power;           // Power, calculated from resistance and cadence to match Keiser's estimates
 float bspeed;          // Bike speed, required by FTMS, to be estimated from power and cadence. A real estimate is TO DO
-float resistance;      // Normalized resistance, determined from the eddy current brake magnet position
+float inst_resistance; // Normalized resistance reading, determined from the eddy current brake magnet position
+float resistance;      // Normalized resistance used in power calculations (can be filtered)
 float disp_resistance; // Resistance valued that's displayed (can be filtered)
-float raw_resistance;  // Raw resistance measurement from the ADC. Global because it's reported in the serial monitor
+uint32_t raw_resistance;  // Raw resistance measurement from the ADC. Global because it's reported in the serial monitor
 float res_offset;      // Cal fators - raw_resistance to normalized resistance
 float res_factor;
 bool serial_present = false;
 //float resistance_sq;             // Used in both gear and power calcs if not using the lookup table
-uint8_t gear; // Gear number: Index into power tables and, optionally, displayed
+uint8_t gear;          // Gear number: Index into power tables and, optionally, displayed
 #if (POWERSAVE > 0) && (POWERSAVE != 1)
-bool suspended; // Set to true when suspending the main loop
+bool suspended;        // Set to true when suspending the main loop
 #endif
 
-uint8_t batt_pct; // Battery percentage charge
-bool batt_low;    // Battery low
+float batt_mvolts;  // Battery voltage
+uint8_t batt_pct;   // Battery percentage charge
+bool batt_low;      // Battery low
 
 #define TICK_INTERVAL 500 // ms
 uint8_t ticker = 0; // Ticker for the main loop scheduler - inits to zero, also is reset under certain circumstances
@@ -256,19 +260,6 @@ void ADC_setup(void) // Set up the ADC for ongoing resistance measurement
   analogOversampling(ANALOG_OVERSAMPLE);
   analogReadResolution(10); // 10 bits for better gear delineation and for battery measurement
   delay(1);                 // Let the ADC settle before any measurements. Only important if changing the reference or possibly resolution
-}
-
-float readVBAT(void) // Compacted from the Adafruit example
-{
-  float mvolts;
-
-  mvolts = analogRead(BATTERY_PIN) * VBAT_MV_PER_LSB;
-
-  if (mvolts < 3300) // LiPo model...
-    return 0;        //   Dead at 3.3V
-  if (mvolts < 3600) //   Last 10% - linear from 3.3 - 3.6 V
-    return (mvolts - 3300) * 0.03333;
-  return min(10 + ((mvolts - 3600) * 0.15F), 100); //   10-100% - linear from 3.6 - 4.2 V
 }
 
 /*****************************************************************************************************
@@ -778,6 +769,10 @@ void setup()
 // Start the BLEUart service
 #ifdef BLEUART
   bleuart.begin();
+  //bleuart.bufferTXD(true);
+  console_init();
+  console_clear();
+  console_reset();
 #endif
 
 STEP(30)
@@ -930,7 +925,7 @@ uint16_t stop_time;
 
 void lever_check() // Moving the gear lever to the top switches the resistance/gear display mode
 {
-  lever_state = (lever_state << 1) & 0b00000011 | (resistance > BRAKE);
+  lever_state = (lever_state << 1) & 0b00000011 | (inst_resistance > BRAKE);
   if (lever_state == 0b00000001)
   {
     gear_display = !gear_display;
@@ -944,7 +939,7 @@ void lever_check() // Moving the gear lever to the top switches the resistance/g
 void update_resistance()
 {
   raw_resistance = analogRead(RESISTANCE_PIN); // ADC set to oversample
-  float inst_resistance = max((raw_resistance - res_offset) * res_factor, 0);
+  inst_resistance = max((raw_resistance - res_offset) * res_factor, 0);
   resistance = (RESISTANCE_FILTER * resistance + inst_resistance) / (RESISTANCE_FILTER + 1);
   gear = gear_lookup(resistance);
   disp_resistance = (RESISTANCE_DISPLAY_FILTER * resistance + inst_resistance) / (RESISTANCE_DISPLAY_FILTER + 1);
@@ -955,7 +950,15 @@ void update_resistance()
 
 void update_battery()
 {
-  batt_pct = readVBAT();
+  batt_mvolts = analogRead(BATTERY_PIN) * VBAT_MV_PER_LSB;
+
+  if (batt_mvolts < 3300)                                         // LiPo model...
+    batt_pct = 0.0;                                               //   Dead at 3.3V
+  else if (batt_mvolts < 3600)                                    
+    batt_pct = (batt_mvolts - 3300) * 0.03333;                    //   Last 10% - linear from 3.3 - 3.6 V
+  else 
+    batt_pct = min(10.0 + ((batt_mvolts - 3600) * 0.15F), 100.0); //   10-100% - linear from 3.6 - 4.2 V
+
   batt_low = batt_pct < BATT_LOW;
 #ifdef BLEBAS
   blebas.write(batt_pct);
@@ -1179,12 +1182,367 @@ void serial_check(void)
 #endif
 
 #ifdef BLEUART
-void bleuart_check(void)
+#define SBUF_LEN 20
+char sbuffer[SBUF_LEN];  // Serial console input buffer
+char cmd[SBUF_LEN];     // Tokenized command
+char arg[SBUF_LEN];     // Tokenized argument
+uint8_t sbix;             // Current index into input buffer
+bool cmd_rcvd;          // Console state: command received
+bool new_input;         // Console state: new input ready to process
+uint8_t cmd_number;             // Current command (= position in the table)
+uint8_t awaiting_conf = AWAITING_NONE;      // Console state: awaiting confirmation for this numbered command
+uint8_t awaiting_timer;  // Timeout counter for confirmation
+float new_factor;
+float new_offset;
+  
+TaskHandle_t ble_task_handle;
+
+inline void console_clear()  // Clears the console for fresh input
+{
+  sbix = 0; 
+  cmd_rcvd = false; 
+  cmd[0] = 0; 
+  arg[0] = 0; 
+  new_input = false; 
+  //bleuart.flush();  // clear the input to avoid typeahead
+}
+
+#define AWAITING_CONF() awaiting_conf != AWAITING_NONE
+
+inline void console_reset()
+{
+  new_factor = res_factor;
+  new_offset = res_offset;
+}
+
+inline void console_init()
+{
+  bool result = xTaskCreate(bleuart_check, "BLEuartCheck", SCHEDULER_STACK_SIZE_DFLT, ( void * ) 1, TASK_PRIO_LOW, &ble_task_handle);
+}
+
+void bleuart_take_input()
 {
   while (bleuart.available())
+    {
+      uint8_t c = (uint8_t) bleuart.read();
+      switch (c)
+      {
+      case 32: // delimeter
+        if (sbix == 0)
+          break; // Ignore leading spaces in both the command and the argument
+        if (!cmd_rcvd)
+        {
+          memcpy(&cmd, &sbuffer, sbix); // Save the command and ready the buffer for an argument
+          cmd[sbix] = 0;
+          cmd_rcvd = true;
+          sbix = 0;
+        }
+        else
+        {
+          if (sbix < SBUF_LEN - 1)
+            sbuffer[sbix++] = c; // Keep embedded spaces in the argument
+        }
+        break;
+
+      case 10:
+      case 13:
+        //if (new_input) break;
+        if (sbix > 0) // Anything in the buffer?
+        {
+          if (!cmd_rcvd)
+          {
+            memcpy(&cmd, &sbuffer, sbix); // Save the command
+            cmd[sbix] = 0;
+            cmd_rcvd = true;
+          }
+          else
+          {
+            memcpy(&arg, &sbuffer, sbix); // ...or the argument
+            arg[sbix] = 0;
+          }
+        }
+        if (cmd_rcvd)
+          new_input = true;
+        break;
+
+      default:
+        if (sbix < SBUF_LEN - 1)
+          sbuffer[sbix++] = tolower(c); // Add the character to the pending command or argument
+        //std::cout << sbuffer << "\n";
+        break;
+      }
+    }
+}
+
+// BLEUart messages are limited to the BLE MTU - 3. The bleuart library print/write functions will truncate
+// anything longer. So we need our own function to send longer strings in pieces.
+
+
+#define BLEUART_MAX_MSG 20
+/* using absolute memory addresses
+void bleuart_send(const char * message)
+{
+  const char * addr = message;
+  const char * last = message + strlen(message);
+  while (last - addr >= BLEUART_MAX_MSG)
   {
-    uint8_t ch = (uint8_t)bleuart.read();
-    bleuart.write(ch);
+    bleuart.write(addr, BLEUART_MAX_MSG);
+    addr += BLEUART_MAX_MSG;
+  }
+  if (addr < last)
+  {
+    bleuart.write(addr, last - addr);
+  }
+}
+*/
+
+/* Using relative memory addresses */
+void bleuart_send(const char * message)
+{
+  size_t index = 0;
+  size_t last = strlen(message);  
+  while (last - index >= BLEUART_MAX_MSG)
+  {
+    bleuart.write(message + index, BLEUART_MAX_MSG);
+    index += BLEUART_MAX_MSG;
+  }
+  if (index < last)
+  {
+    bleuart.write(message + index, last - index);
+  }
+}
+
+#define PBLEN 128
+char pbuffer[PBLEN];
+#define RESPOND(string) bleuart_send(string)
+#define BLE_PRINT(format, args...) snprintf(pbuffer, PBLEN, format, args); \
+                                   bleuart_send(pbuffer)
+
+void cmd_batt()
+{
+  BLE_PRINT("Battery voltage %.2f \n", batt_mvolts/1000);//batt_mvolts*1000);
+  BLE_PRINT(" %d%% charge\n\n", batt_pct);
+}
+
+void cmd_res()
+{
+  uint32_t last_resistance = raw_resistance;
+  for (uint8_t i = 100; i > 0; i--)                     // Runs for 100 samples or until interrupted by input
+  {
+    if (raw_resistance != last_resistance)
+    {
+      BLE_PRINT("Raw ADC value %d\n", raw_resistance);
+      BLE_PRINT("Resistance %.1f%%\n", resistance);
+      BLE_PRINT("Keiser gear number %d\n\n", gear);
+      last_resistance = raw_resistance;
+    }
+    if (bleuart.available())
+    {
+      bleuart.flush();
+      break;
+    }
+    delay(TICK_INTERVAL);
+  }
+}
+
+  void cmd_showcal()
+  {
+    BLE_PRINT("Offset %.1f; factor %.4f\n\n", res_offset, res_factor);
+  }
+
+  void cmd_factor()
+  {
+    if (arg[0] == 0) //Should check for numeric as well
+    {
+      RESPOND("Factor command requires a numeric value.\n\n");
+      return;
+    }
+    new_factor = atof(arg);
+    BLE_PRINT("New factor will be %.4f  .\n", new_factor);
+    RESPOND("Use activate to have the bike use the new value.\n\n");
+  }
+
+  void cmd_offset()
+  {
+    if (arg[0] == 0) //Should check for numeric as well
+    {
+      RESPOND("Offset command requires a numeric value.\n\n");
+      return;
+    }
+    new_offset = atof(arg);
+    BLE_PRINT("New offset will be %.1f  .\n", new_offset);
+    RESPOND("Use activate to have the bike use the new value.\n\n");
+  }
+
+  void cmd_defaults()
+  {
+    new_offset = RESISTANCE_OFFSET;
+    new_factor = RESISTANCE_FACTOR;
+    RESPOND("\nDefaults...\n");
+    BLE_PRINT("New offset will be %.1f  .\n", new_offset);
+    BLE_PRINT("New factor will be %.4f  .\n", new_factor);
+    RESPOND("Use activate to have the bike use these values.\n\n");
+  }
+
+  uint8_t i;
+  uint32_t base;
+  uint32_t reading;
+
+  void delay_message(uint8_t steps, uint16_t time)
+  {
+    for (i = steps; i > 0; i--)
+    {
+      BLE_PRINT(" %d..", i);
+      delay(time);
+    }
+  }
+  void cmd_cal()
+  {
+    if (AWAITING_CONF())
+    {
+      RESPOND("\n\nBe sure that the resistance lever is at the bottom (lowest gear).\n");
+      RESPOND("Rotate the flywheel so that the tool contacts the magnet assembly.\n");
+      delay_message(5, 1000);
+      //base = analogRead(RESISTANCE_PIN);  // Baseline reading - should increase from here
+      RESPOND("\nRotate the magnet assembly by hand so that the magnet settles into the pocket in the cal tool.\n");
+      RESPOND("Do not use the lever!\n");
+      delay_message(5, 1000);
+      RESPOND("\nHold while readings are taken...\n");
+      uint32_t cal_reading = 0;
+      for (uint8_t i = 10; i > 0; i--)
+      {
+        reading = analogRead(RESISTANCE_PIN);
+        BLE_PRINT("   %d \n", reading);
+        cal_reading += reading;
+        delay(200);
+      }
+      cal_reading /= 10;
+      BLE_PRINT("Done. Average was %d.\n", cal_reading);
+      new_offset = cal_reading - CALTOOL_RES/res_factor;
+      BLE_PRINT("The new offset is %.1f.\n", new_offset);
+      RESPOND("Use activate to have the bike use these values.\n\n");
+      awaiting_conf = AWAITING_NONE;
+  }
+  else 
+  {
+      RESPOND("Enter the calibration procedure.\n");
+      RESPOND("If for any reason you need to change the cal factor, enter and activate it *before* proceeding.\n");
+      RESPOND("Have the calibration tool on the flywheel.\n");
+      RESPOND("Y to continue...");
+      awaiting_conf = cmd_number;
+      awaiting_timer = CONFIRMATION_TIMEOUT ;
+
+  }
+}
+
+void cmd_activate()
+{
+  if (AWAITING_CONF()) 
+  {
+      res_offset = new_offset;
+      res_factor = new_factor;
+      RESPOND("\nActivate factor and offset confirmed.\n");
+      BLE_PRINT("Offset %.1f; factor %.4f\n\n", res_offset, res_factor);
+      awaiting_conf = AWAITING_NONE;
+  }
+  else 
+  {
+      BLE_PRINT("Factor will be %.4f and offset will be %.1f .\n", new_factor, new_offset);
+      RESPOND("Y to make these the active values...");
+      awaiting_conf = cmd_number;
+      awaiting_timer = CONFIRMATION_TIMEOUT ;
+  }
+}
+
+void cmd_write()
+{
+  if (AWAITING_CONF()) 
+  {
+      RESPOND("\nWrite confirmed.\n");
+      awaiting_conf = AWAITING_NONE;
+  }
+  else 
+  {
+      RESPOND("Currently active factor and offset are...\n");
+      BLE_PRINT("Offset %.1f; factor %.4f\n", res_offset, res_factor);
+      RESPOND("Y to write these to the file...");
+      awaiting_conf = cmd_number;
+      awaiting_timer = CONFIRMATION_TIMEOUT ;
+  }
+}
+
+void cmd_read()
+{
+  RESPOND("Here, we'd read from the filesystem.\n");
+}
+
+void cmd_help()
+{
+    RESPOND("\n");
+    for (int i = 0; i < n_cmds; i++)
+    {
+        BLE_PRINT("%s - %s \n", cmd_table[i].cmd, cmd_table[i].help);
+        // RESPOND(cmd_table[i].cmd);
+        // RESPOND(" - ");
+        // RESPOND(cmd_table[i].help);
+        // RESPOND("\n");
+    }
+}
+
+void process_cmd()
+{
+  if (AWAITING_CONF())     // Awaiting confirmation - look for a "y" and call the same handler, or cancel
+  {
+      if (!strcmp(cmd, "y"))
+      {
+          cmd_table[awaiting_conf].cmdHandler();
+      }
+      else {
+          RESPOND("Canceled.\n");
+          awaiting_conf = AWAITING_NONE;
+      }
+      //awaiting_conf = AWAITING_NONE;   // Each handler needs to reset awaiting_conf
+      return;
+  }
+  
+  int i = n_cmds;
+  while (i--)
+  {
+    if (!strcmp(cmd, cmd_table[i].cmd))
+    {
+      cmd_number = i;
+      cmd_table[i].cmdHandler();
+      return;
+    }
+  }
+  RESPOND("Not a valid command.");
+  cmd_help();
+  return;
+}
+
+void bleuart_check(void *notUsed)
+{
+  uint32_t puNotificationValue;
+  while (1)
+  {
+    xTaskNotifyWait(0x00, portMAX_DELAY, &puNotificationValue, DELAY_FOREVER); // Just sit here, blocked, until update() notifies us
+    bleuart_take_input();  // Take in whatever's there
+    if (new_input)
+    {
+      process_cmd();       
+      console_clear();
+      //RESPOND(" ");
+    }
+    else if (AWAITING_CONF())
+    {
+      RESPOND(".");
+      if (--awaiting_timer == 0)
+      {
+        awaiting_conf = AWAITING_NONE;
+        RESPOND("Cancelled.\n\n");
+        console_clear();
+      }
+    }
   }
 }
 
@@ -1201,25 +1559,21 @@ void LED_flash(int times, int ms)
       delay(ms);
   }
 }
-void loop()
-{
 
+void loop() // We're using a FreeRTOS scheduled task, so this is empty.
+{
 };
 
 void update(TimerHandle_t xTimerID)
 {
-// Things that happens on every tick
+// Things that happens on every tick -------------------------------------------------------------------------------------
   update_resistance();
 
 #ifdef USE_SERIAL
   //serial_check();  // Can't do this here in its current form because it can take longer than the timer interval
 #endif
 
-#ifdef BLEUART
-  bleuart_check();  // Must be careful about what's done here - mustn't take longer than the timer interval
-#endif
-
-// Things happen at the default tick interval
+// Things happen at the default tick interval ----------------------------------------------------------------------------
   if ((ticker % DEFAULT_TICKS) == 0)
   {
     process_crank_event();
@@ -1232,16 +1586,21 @@ void update(TimerHandle_t xTimerID)
     updateBLE();
   }
 
-  // Things that happen on BATT_TICKS
+#ifdef BLEUART
+  // NOTE: It may be OK to just unblock. The if() is intended to avoid the overhead of the task notify
+  if (bleuart.available() || AWAITING_CONF()) xTaskNotifyGive(ble_task_handle); // Unblock bleuart_check()
+#endif
+
+  // Things that happen on BATT_TICKS ------------------------------------------------------------------------------------
   if ((ticker % BATT_TICKS) == 0)
   {
     update_battery();
   }
 
-  // Final things, as needed, on every tick
+  // Final things, as needed, on every tick ------------------------------------------------------------------------------
   if (display_state > 0)
     display_numbers();
 
   ticker++;
-  //delay(TICK_INTERVAL);
+  //delay(TICK_INTERVAL);  // Not used when this routine is triggered by a timer.
 }

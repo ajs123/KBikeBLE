@@ -13,8 +13,16 @@
 // Normalized resistance will exceed 100% because there is magnet assembly excursion beyond the top of the range,
 //    prior to the mechanical brake contacting the flywheel, and at the bottom of the range as well.
 // These are default cals, used if the filesystem has nothing
+// The factor shouldn't change unless there is a significant change in the total resistance of the sense pot,
+// the high side voltage, or the high side impedance.
+// The offset changes from bike to bike due to how the magnet assembly engages with the sense pot.
 #define RESISTANCE_OFFSET 154.6       // From Raw ADC - Keiser graph regression
 #define RESISTANCE_FACTOR 0.2182
+
+// Calibration with the Keiser tool assumes that the normalized resistance is this value when the
+// magnet is snug against the semicircular pocket in the tool
+#define CALTOOL_RES 40
+
 
 // Power vs. resistance at reference cadence (90 RPM) as Ax^2 + Bx + C
 // The following, which is pretty good from Keiser gears 2-20, was abandonded in favor of a table lookup//

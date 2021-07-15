@@ -64,3 +64,5 @@
 #define BLE_TX_POWER -12 // BLE transmit power in dBm
 // Valid options for nRF52840: -40, -20, -16, -12, -8, -4, 0, +2, +3, +4, +5, +6, +7, or +8
 #define BLE_LED_INTERVAL 1000 // ms
+
+#define CONFIRMATION_TIMEOUT 15; // In the console, approx seconds to timeout of commands requiring confirmation
