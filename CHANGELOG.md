@@ -53,4 +53,7 @@
   - Calibration similar to Keiser's procedure, initiated through the *calibrate* command and with step-by-step prompts for using the calibration tool.
     - Calibration will not yet survive a reset. Saving parameters to nonvolatile memory (LittleFS) is next.
 - V0.17
-
+  - Calibration is now saved to nonvolatile memory (via LittleFS). If cal files aren't present, they're created from the defaults in calibration.h. 
+  - Little U8G2 log screen at startup to show parameters read from or written to nonvolatile memory
+  - The Bluetooth command line interface now allows calibration values to be re-read from, or written to, nonvolatile memory. 
+  - Moved globals to globals.h - start of some code cleanup

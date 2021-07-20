@@ -1,4 +1,5 @@
 .DS_Store
+plans*.h
 *ino-
 .vscode/*
 !.vscode/settings.json

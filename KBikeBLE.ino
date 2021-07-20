@@ -1,6 +1,7 @@
 /* Bluetooth console for Keiser M3 **********************************
     V0.17
 *********************************************************************/
+#define VERSION "0.17"
 
 #include <Arduino.h>
 #include <bluefruit.h> // nrf52 built-in bluetooth
@@ -17,6 +18,7 @@
 #include "power_gear_tables.h"
 #include "calibration.h"
 #include "serial_commands.h"
+#include "param_store.h"
 
 /**********************************************************************
  * Optional functions and debugging
@@ -62,6 +64,12 @@ uint8_t stepnum = 0;
 #endif
 
 /************************************************************************
+ * Globals
+ ************************************************************************/
+
+#include "globals.h"
+
+/************************************************************************
  * Miscellany
  ************************************************************************/
 
@@ -81,83 +89,88 @@ bool gear_display = GEAR_DISPLAY;
 /********************************************************************************
    Globals
  ********************************************************************************/
-// BLE data blocks addressable as bytes for flags and words for data
-union ble_data_block
-{ // Used to set flag bytes (0, 1) and data uint16's (words 1, ...)
-  uint8_t bytes[2];
-  uint16_t words[16];
-};
-union ble_data_block bike_data;  // For the Bike Data Characteristic (FiTness Machine Service)
-union ble_data_block power_data; // For the Cycling Power Measurement Characteristic (Cycling Power Service)
+// // BLE data blocks addressable as bytes for flags and words for data
+// union ble_data_block
+// { // Used to set flag bytes (0, 1) and data uint16's (words 1, ...)
+//   uint8_t bytes[2];
+//   uint16_t words[16];
+// };
+// union ble_data_block bike_data;  // For the Bike Data Characteristic (FiTness Machine Service)
+// union ble_data_block power_data; // For the Cycling Power Measurement Characteristic (Cycling Power Service)
 
-// Globals. Variable accessed in multiple places are declared here.
-// Those used only in specific functions are declared within or nearby.
+// // Globals. Variable accessed in multiple places are declared here.
+// // Those used only in specific functions are declared within or nearby.
 
-float cadence;         // Pedal cadence, determined from crank event timing
-float power;           // Power, calculated from resistance and cadence to match Keiser's estimates
-float bspeed;          // Bike speed, required by FTMS, to be estimated from power and cadence. A real estimate is TO DO
-float inst_resistance; // Normalized resistance reading, determined from the eddy current brake magnet position
-float resistance;      // Normalized resistance used in power calculations (can be filtered)
-float disp_resistance; // Resistance valued that's displayed (can be filtered)
-uint32_t raw_resistance;  // Raw resistance measurement from the ADC. Global because it's reported in the serial monitor
-float res_offset;      // Cal fators - raw_resistance to normalized resistance
-float res_factor;
-bool serial_present = false;
-//float resistance_sq;             // Used in both gear and power calcs if not using the lookup table
-uint8_t gear;          // Gear number: Index into power tables and, optionally, displayed
-#if (POWERSAVE > 0) && (POWERSAVE != 1)
-bool suspended;        // Set to true when suspending the main loop
-#endif
+// float cadence;         // Pedal cadence, determined from crank event timing
+// float power;           // Power, calculated from resistance and cadence to match Keiser's estimates
+// float bspeed;          // Bike speed, required by FTMS, to be estimated from power and cadence. A real estimate is TO DO
+// float inst_resistance; // Normalized resistance reading, determined from the eddy current brake magnet position
+// float resistance;      // Normalized resistance used in power calculations (can be filtered)
+// float disp_resistance; // Resistance valued that's displayed (can be filtered)
+// uint32_t raw_resistance;  // Raw resistance measurement from the ADC. Global because it's reported in the serial monitor
+// float res_offset;      // Cal fators - raw_resistance to normalized resistance
+// float res_factor;
+// bool serial_present = false;
+// //float resistance_sq;             // Used in both gear and power calcs if not using the lookup table
+// uint8_t gear;          // Gear number: Index into power tables and, optionally, displayed
+// #if (POWERSAVE > 0) && (POWERSAVE != 1)
+// bool suspended;        // Set to true when suspending the main loop
+// #endif
 
-float batt_mvolts;  // Battery voltage
-uint8_t batt_pct;   // Battery percentage charge
-bool batt_low;      // Battery low
+// float batt_mvolts;  // Battery voltage
+// uint8_t batt_pct;   // Battery percentage charge
+// bool batt_low;      // Battery low
 
-#define TICK_INTERVAL 500 // ms
-uint8_t ticker = 0; // Ticker for the main loop scheduler - inits to zero, also is reset under certain circumstances
+// #define TICK_INTERVAL 500 // ms
+// uint8_t ticker = 0; // Ticker for the main loop scheduler - inits to zero, also is reset under certain circumstances
 
 
-volatile float inst_cadence = 0;        // Cadence calculated in the crank ISR
-volatile uint16_t crank_count = 0;      // Cumulative crank rotations - set by the crank sensor ISR, reported by CPS and used to determine cadence
-volatile uint32_t crank_event_time = 0; // Set to the most recent crank event time by the crank sensor ISR [ms]
-//volatile uint32_t last_change_time;   // Used in the crank sensor ISR for sensor debounce [ms]. Initialized to millis() in Setup().
-volatile bool new_crank_event = false; // Set by the crank sensor ISR; cleared by the main loop
-volatile uint16_t crank_ticks;         // 1/1024 sec per tick crank clock, for Cycling Power Measurement [ticks]
+// volatile float inst_cadence = 0;        // Cadence calculated in the crank ISR
+// volatile uint16_t crank_count = 0;      // Cumulative crank rotations - set by the crank sensor ISR, reported by CPS and used to determine cadence
+// volatile uint32_t crank_event_time = 0; // Set to the most recent crank event time by the crank sensor ISR [ms]
+// //volatile uint32_t last_change_time;   // Used in the crank sensor ISR for sensor debounce [ms]. Initialized to millis() in Setup().
+// volatile bool new_crank_event = false; // Set by the crank sensor ISR; cleared by the main loop
+// volatile uint16_t crank_ticks;         // 1/1024 sec per tick crank clock, for Cycling Power Measurement [ticks]
 
-//uint32_t prior_event_time = 0;          // Used in the main loop to hold the time of the last reported crank event [ms]
+// //uint32_t prior_event_time = 0;          // Used in the main loop to hold the time of the last reported crank event [ms]
 
-bool ftm_active = true; // Once a client connects with either service, we stop updating the other.
-bool cp_active = true;
+// bool ftm_active = true; // Once a client connects with either service, we stop updating the other.
+// bool cp_active = true;
 
-uint8_t display_state = 2; // Display state: 0 = off, 1 = dim, 2 = full on
+// uint8_t display_state = 2; // Display state: 0 = off, 1 = dim, 2 = full on
 
-// U8G2 display instance. What goes here depends upon the specific display and interface. See U8G2 examples.
-U8G2_SH1106_128X64_NONAME_F_HW_I2C display(U8G2_R1, /* reset=*/U8X8_PIN_NONE); // 128 x 64 SH1106 display on hardware I2C
-//U8G2_SH1106_128X64_WINSTAR_F_HW_I2C display(U8G2_R1, /* reset=*/ U8X8_PIN_NONE);
-//U8G2_SH1106_128X64_VCOMH0_F_HW_I2C display(U8G2_R1, /* reset=*/ U8X8_PIN_NONE); // Provides a wider setContrast() range but at the expense of uniformity when dimmed
+// // U8G2 display instance. What goes here depends upon the specific display and interface. See U8G2 examples.
+// U8G2_SH1106_128X64_NONAME_F_HW_I2C display(U8G2_R1, /* reset=*/U8X8_PIN_NONE); // 128 x 64 SH1106 display on hardware I2C
 
-// FTMS Service Definitions
-BLEService svc_ftms = BLEService(0x1826);                       // FiTness machine service
-BLECharacteristic char_ftm_feature = BLECharacteristic(0x2ACC); // FiTness machine Feature characteristic
-BLECharacteristic char_bike_data = BLECharacteristic(0x2AD2);   // Indoor Bike Data characteristic
+// // FTMS Service Definitions
+// BLEService svc_ftms = BLEService(0x1826);                       // FiTness machine service
+// BLECharacteristic char_ftm_feature = BLECharacteristic(0x2ACC); // FiTness machine Feature characteristic
+// BLECharacteristic char_bike_data = BLECharacteristic(0x2AD2);   // Indoor Bike Data characteristic
 
-// CPS Service Definitions
-BLEService svc_cps = BLEService(0x1818);                           // Cycling Power Service
-BLECharacteristic char_cp_feature = BLECharacteristic(0x2A65);     // Cycling Power Feature
-BLECharacteristic char_cp_measurement = BLECharacteristic(0x2A63); // Cycling Power Measurement
-BLECharacteristic char_sensor_loc = BLECharacteristic(0x2A5D);     // Sensor Location
+// // CPS Service Definitions
+// BLEService svc_cps = BLEService(0x1818);                           // Cycling Power Service
+// BLECharacteristic char_cp_feature = BLECharacteristic(0x2A65);     // Cycling Power Feature
+// BLECharacteristic char_cp_measurement = BLECharacteristic(0x2A63); // Cycling Power Measurement
+// BLECharacteristic char_sensor_loc = BLECharacteristic(0x2A5D);     // Sensor Location
 
-BLEDis bledis; // DIS (Device Information Service) helper class instance
-#ifdef BLEBAS
-BLEBas blebas; // BAS (Battery Service) helper class instance
-#endif
-#ifdef BLEUART
-BLEUart bleuart; // UART over BLE
-#endif
+// BLEDis bledis; // DIS (Device Information Service) helper class instance
+// #ifdef BLEBAS
+// BLEBas blebas; // BAS (Battery Service) helper class instance
+// #endif
+// #ifdef BLEUART
+// BLEUart bleuart; // UART over BLE
+// #endif
+
 
 /*********************************************************************************
   Display code
 **********************************************************************************/
+
+// Log used at startup
+#define U8LOG_WIDTH 16 // 64/4
+#define U8LOG_HEIGHT 21 // 128/6
+uint8_t u8log_buffer[U8LOG_WIDTH * U8LOG_HEIGHT];
+U8G2LOG displog;
 
 void display_setup(void)
 {
@@ -165,6 +178,10 @@ void display_setup(void)
   display.setContrast(CONTRAST_FULL);
   //display.enableUTF8Print();  // Can leave this out if using no symbols
   display.setFontMode(1); // "Transparent": Character background not drawn (since we clear the display anyway)
+  
+  displog.begin(display, U8LOG_WIDTH, U8LOG_HEIGHT, u8log_buffer);
+  displog.setLineHeightOffset(0);
+  displog.setRedrawMode(0);
 }
 
 void right_just(uint16_t number, int x, int y, int width)
@@ -624,51 +641,6 @@ void format_power_data(void)
   interrupts();
 }
 
-/*********************************************************************************
-  --- OLD ---
-  ISR for crank sensor events. Triggerd on any change.
-  To keep this short, it simply identifies a crank event as sensor active (0) when it's been inactive (1)
-  for at least MIN_INACTIVE ms. Sets the new_crank_event flag, increments the crank event count, and records the crank_event_time.
-  The main loop handles calculating the cadence, formatting of crank/cadence data and doing BLE notify.
-**********************************************************************************
-
-uint8_t prev_crank_state = 0b10;
-uint32_t last_event_time = 0;
-const uint32_t MIN_INACTIVE = 100; // milliseconds
-
-void crank_callback()
-{
-  uint32_t now = millis();
-  uint32_t dt;
-  uint8_t state = prev_crank_state | digitalRead(CRANK_PIN);  // Yields a combined state between 0b00 and 0b11
-  
-  if (suspended) resume();   
-
-  switch (state) {
-    case 0b00 :   // Was low (active) and still low - spurious/noise.
-      //prev_crank_state = 0b00;
-      break;
-    case 0b01 :   // Was low (active) and now high - nothing to do except note the event.
-      prev_crank_state = 0b10;  // previous is current shifted left
-      break;
-    case 0b10 :   // Was high (inactive) and now low (active) - depends upon whether inactive long enough.
-      dt = now - crank_event_time; // ms since last true leading edge
-      if (dt > MIN_INACTIVE) {     // True crank sensor leading edge.
-        crank_count++;           // Accumulated crank rotations - used by Cycling Power Measurement and by the main loop to get cadence
-        crank_ticks += min(dt * 1024 / 1000, 0xFFFF); // Crank event clock in 1/1024 sec ticks - used by Cycling Power Measurement
-        new_crank_event = true;    // This tells the main loop that there is new crank data
-        crank_event_time = now;
-        inst_cadence = 60000 / (crank_event_time - prior_event_time);
-      }
-      prev_crank_state = 0b00;
-      break;
-    case 0b11 :   // Was high (inactive) and still high - spurious/noise.
-      break;
-  }
-  last_change_time = now;
-}
-*/
-
 /*********************************************************************************************
   Simplified ISR for crank sensor events. Triggerd on the pin tranisitioning low (switch closure).
   As long as there's been more than MIN_INACTIVE time, trust the hardware and call it a crank event.
@@ -707,9 +679,49 @@ void crank_callback()
  ********************************************************************************/
 void init_cal()
 {
-  res_offset = RESISTANCE_OFFSET; // Later, these will be read from a file if present
-  res_factor = RESISTANCE_FACTOR;
+  display.setFont(u8g2_font_5x7_tr);
+  displog.print("KBikeBLE ");
+  displog.println(VERSION);
+  displog.println();
+
+  if (!read_param_file("offset", &res_offset, sizeof(res_offset)))
+  {
+    res_offset = RESISTANCE_OFFSET;
+    write_param_file("offset", &res_offset, sizeof(res_offset));
+    displog.println("OFFSET");
+    displog.println("DEFAULT");
+    displog.println("WRITE:");
+    displog.println(res_offset);
+  }
+  else
+  {
+    displog.print("OFFSET");
+    displog.println(" READ:");
+    displog.println(res_offset);
+  }
+  if (!read_param_file("factor", &res_factor, sizeof(res_factor)))
+  {
+    res_factor = RESISTANCE_FACTOR;
+    write_param_file("factor", &res_factor, sizeof(res_factor));
+    displog.println("\nFACTOR");
+    displog.println("DEFAULT");
+    displog.println("WRITE:");
+    displog.printf("%.1f\n\n", res_factor);
+  }
+  else
+  {
+    displog.print("\nFACTOR");
+    displog.println(" READ:");
+    displog.printf("%.4f\n", res_factor);
+  }
+
+  delay(5000);
 }
+
+/********************************************************************************
+ * Startup
+ ********************************************************************************/
+
 
 SoftwareTimer update_timer;
 
@@ -731,6 +743,8 @@ void setup()
 
   display_setup();
 
+  // Set up the internal filesystem (LittleFS), read files, and where any files are missing write defaults
+  setup_InternalFS();
   init_cal();
 
   STEP(10)
@@ -738,6 +752,8 @@ void setup()
   Bluefruit.begin();
 
   STEP(20)
+
+  // Set up Bluetooth
 
   // Set power - needs only to work in pretty close range
   Bluefruit.setTxPower(BLE_TX_POWER);
@@ -769,10 +785,7 @@ void setup()
 // Start the BLEUart service
 #ifdef BLEUART
   bleuart.begin();
-  //bleuart.bufferTXD(true);
   console_init();
-  console_clear();
-  console_reset();
 #endif
 
 STEP(30)
@@ -1218,6 +1231,8 @@ inline void console_reset()
 inline void console_init()
 {
   bool result = xTaskCreate(bleuart_check, "BLEuartCheck", SCHEDULER_STACK_SIZE_DFLT, ( void * ) 1, TASK_PRIO_LOW, &ble_task_handle);
+  console_clear();
+  console_reset();
 }
 
 void bleuart_take_input()
@@ -1274,29 +1289,10 @@ void bleuart_take_input()
     }
 }
 
+#define BLEUART_MAX_MSG 20
+// Send a (relatively) lengthy message over BLE.
 // BLEUart messages are limited to the BLE MTU - 3. The bleuart library print/write functions will truncate
 // anything longer. So we need our own function to send longer strings in pieces.
-
-
-#define BLEUART_MAX_MSG 20
-/* using absolute memory addresses
-void bleuart_send(const char * message)
-{
-  const char * addr = message;
-  const char * last = message + strlen(message);
-  while (last - addr >= BLEUART_MAX_MSG)
-  {
-    bleuart.write(addr, BLEUART_MAX_MSG);
-    addr += BLEUART_MAX_MSG;
-  }
-  if (addr < last)
-  {
-    bleuart.write(addr, last - addr);
-  }
-}
-*/
-
-/* Using relative memory addresses */
 void bleuart_send(const char * message)
 {
   size_t index = 0;
@@ -1459,7 +1455,15 @@ void cmd_write()
 {
   if (AWAITING_CONF()) 
   {
-      RESPOND("\nWrite confirmed.\n");
+      if (write_param_file("offset", &res_offset, sizeof(res_offset)) &
+          write_param_file("factor", &res_factor, sizeof(res_factor)) )
+          {
+            RESPOND("\nWrite confirmed.\n");
+          }
+          else
+          {
+            RESPOND("\Failed to write the files.\n");
+          }
       awaiting_conf = AWAITING_NONE;
   }
   else 
@@ -1474,7 +1478,13 @@ void cmd_write()
 
 void cmd_read()
 {
-  RESPOND("Here, we'd read from the filesystem.\n");
+  if (read_param_file("offset", &new_offset, sizeof(new_offset)) &
+      read_param_file("factor", &new_factor, sizeof(new_factor)))
+    {
+      RESPOND("Read from the parameter files:");
+      BLE_PRINT("Offset %.1f; factor %.4f\n", new_offset, new_factor);
+      RESPOND("Y to write these to the file...");
+    }
 }
 
 void cmd_help()
