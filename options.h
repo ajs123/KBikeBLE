@@ -66,3 +66,14 @@
 #define BLE_LED_INTERVAL 1000 // ms
 
 #define CONFIRMATION_TIMEOUT 15; // In the console, approx seconds to timeout of commands requiring confirmation
+
+/* Optional features and functions.
+   The console interface allows the user to, among other things, calibrate the computer to the individual
+   bike, so enabling it is recommended. Presently, the BLEUart interface is fully developed, while the
+   serial interface is not.
+*/
+//#define USE_SERIAL     // Incorporate USB serial functions. Will attempt serial connection at startup.
+                         // CAREFUL! With 1/sec updates through a timer task, it must always finish in < 1 sec.
+#define BLEUART // Activates serial over BLE
+#define BLEBAS  // Activate BLE battery service
+

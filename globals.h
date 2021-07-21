@@ -4,6 +4,10 @@
 #ifndef GLOBALS_
 #define GLOBALS_
 
+#include <Arduino.h>
+#include <bluefruit.h> // nrf52 built-in bluetooth
+#include "options.h"
+
 // BLE data blocks addressable as bytes for flags and words for data
 union ble_data_block
 { // Used to set flag bytes (0, 1) and data uint16's (words 1, ...)
@@ -36,7 +40,7 @@ float batt_mvolts;  // Battery voltage
 uint8_t batt_pct;   // Battery percentage charge
 bool batt_low;      // Battery low
 
-#define TICK_INTERVAL 500 // ms
+#define TICK_INTERVAL 500 
 uint8_t ticker = 0; // Ticker for the main loop scheduler - inits to zero, also is reset under certain circumstances
 
 

@@ -14,6 +14,7 @@
 #endif
 
 #include "options.h"            // Options of most interest to the end user
+#include "globals.h"
 #include "bike_interface.h"     // Defines the hardware connections to the bike
 #include "power_gear_tables.h"
 #include "calibration.h"
@@ -23,11 +24,6 @@
 /**********************************************************************
  * Optional functions and debugging
  **********************************************************************/
-
-//#define USE_SERIAL     // Incorporate USB serial functions. Will attempt serial connection at startup.
-                         // CAREFUL! With 1/sec updates through a timer task, it must always finish in < 1 sec.
-#define BLEUART // Activates serial over BLE
-#define BLEBAS  // Activate BLE battery service
 
 //#define QUICKTIMEOUT     // Quick timeout options for testing power saving functions
 //#define DEBUGGING        // Activates debug code. Requires USE_SERIAL for any serial console bits.
@@ -44,13 +40,13 @@
 
 #if defined(USE_SERIAL) && defined(DEBUGGING)
 #define DEBUG(x, l) \
-  Serial.print(x);  \
-  Serial.print(l);
+  Serial.print(F(x));  \
+  Serial.print(F(l));
 #else
 #define DEBUG(x, l)
 #endif
 
-#ifdef DEBUGGING // Stepwise startup to watch for power consumption
+#ifdef DEBUGGING // Pauses at points in startup can be helpful in checking power consumption
 uint8_t stepnum = 0;
 #define STEP(N) \
   cadence = N; \
@@ -62,12 +58,6 @@ uint8_t stepnum = 0;
 #define STEP(N)
 #define DWAIT()
 #endif
-
-/************************************************************************
- * Globals
- ************************************************************************/
-
-#include "globals.h"
 
 /************************************************************************
  * Miscellany
@@ -86,100 +76,28 @@ uint8_t lever_state = 0b00000000;
 bool gear_display = GEAR_DISPLAY;
 #define BRAKE 100 // Edge of the valid range, less than the max reading
 
-/********************************************************************************
-   Globals
- ********************************************************************************/
-// // BLE data blocks addressable as bytes for flags and words for data
-// union ble_data_block
-// { // Used to set flag bytes (0, 1) and data uint16's (words 1, ...)
-//   uint8_t bytes[2];
-//   uint16_t words[16];
-// };
-// union ble_data_block bike_data;  // For the Bike Data Characteristic (FiTness Machine Service)
-// union ble_data_block power_data; // For the Cycling Power Measurement Characteristic (Cycling Power Service)
-
-// // Globals. Variable accessed in multiple places are declared here.
-// // Those used only in specific functions are declared within or nearby.
-
-// float cadence;         // Pedal cadence, determined from crank event timing
-// float power;           // Power, calculated from resistance and cadence to match Keiser's estimates
-// float bspeed;          // Bike speed, required by FTMS, to be estimated from power and cadence. A real estimate is TO DO
-// float inst_resistance; // Normalized resistance reading, determined from the eddy current brake magnet position
-// float resistance;      // Normalized resistance used in power calculations (can be filtered)
-// float disp_resistance; // Resistance valued that's displayed (can be filtered)
-// uint32_t raw_resistance;  // Raw resistance measurement from the ADC. Global because it's reported in the serial monitor
-// float res_offset;      // Cal fators - raw_resistance to normalized resistance
-// float res_factor;
-// bool serial_present = false;
-// //float resistance_sq;             // Used in both gear and power calcs if not using the lookup table
-// uint8_t gear;          // Gear number: Index into power tables and, optionally, displayed
-// #if (POWERSAVE > 0) && (POWERSAVE != 1)
-// bool suspended;        // Set to true when suspending the main loop
-// #endif
-
-// float batt_mvolts;  // Battery voltage
-// uint8_t batt_pct;   // Battery percentage charge
-// bool batt_low;      // Battery low
-
-// #define TICK_INTERVAL 500 // ms
-// uint8_t ticker = 0; // Ticker for the main loop scheduler - inits to zero, also is reset under certain circumstances
-
-
-// volatile float inst_cadence = 0;        // Cadence calculated in the crank ISR
-// volatile uint16_t crank_count = 0;      // Cumulative crank rotations - set by the crank sensor ISR, reported by CPS and used to determine cadence
-// volatile uint32_t crank_event_time = 0; // Set to the most recent crank event time by the crank sensor ISR [ms]
-// //volatile uint32_t last_change_time;   // Used in the crank sensor ISR for sensor debounce [ms]. Initialized to millis() in Setup().
-// volatile bool new_crank_event = false; // Set by the crank sensor ISR; cleared by the main loop
-// volatile uint16_t crank_ticks;         // 1/1024 sec per tick crank clock, for Cycling Power Measurement [ticks]
-
-// //uint32_t prior_event_time = 0;          // Used in the main loop to hold the time of the last reported crank event [ms]
-
-// bool ftm_active = true; // Once a client connects with either service, we stop updating the other.
-// bool cp_active = true;
-
-// uint8_t display_state = 2; // Display state: 0 = off, 1 = dim, 2 = full on
-
-// // U8G2 display instance. What goes here depends upon the specific display and interface. See U8G2 examples.
-// U8G2_SH1106_128X64_NONAME_F_HW_I2C display(U8G2_R1, /* reset=*/U8X8_PIN_NONE); // 128 x 64 SH1106 display on hardware I2C
-
-// // FTMS Service Definitions
-// BLEService svc_ftms = BLEService(0x1826);                       // FiTness machine service
-// BLECharacteristic char_ftm_feature = BLECharacteristic(0x2ACC); // FiTness machine Feature characteristic
-// BLECharacteristic char_bike_data = BLECharacteristic(0x2AD2);   // Indoor Bike Data characteristic
-
-// // CPS Service Definitions
-// BLEService svc_cps = BLEService(0x1818);                           // Cycling Power Service
-// BLECharacteristic char_cp_feature = BLECharacteristic(0x2A65);     // Cycling Power Feature
-// BLECharacteristic char_cp_measurement = BLECharacteristic(0x2A63); // Cycling Power Measurement
-// BLECharacteristic char_sensor_loc = BLECharacteristic(0x2A5D);     // Sensor Location
-
-// BLEDis bledis; // DIS (Device Information Service) helper class instance
-// #ifdef BLEBAS
-// BLEBas blebas; // BAS (Battery Service) helper class instance
-// #endif
-// #ifdef BLEUART
-// BLEUart bleuart; // UART over BLE
-// #endif
-
-
 /*********************************************************************************
   Display code
 **********************************************************************************/
 
+#define DISPLAY_LABEL_FONT u8g2_font_helvB10_tr
+#define DISPLAY_NUMBER_FONT u8g2_font_helvB24_tn
 // Log used at startup
-#define U8LOG_WIDTH 16 // 64/4
-#define U8LOG_HEIGHT 21 // 128/6
-uint8_t u8log_buffer[U8LOG_WIDTH * U8LOG_HEIGHT];
+#define LOG_FONT u8g2_font_5x7_tr
+#define LOG_FONT_BIG u8g2_font_7x14_tf
+#define LOG_WIDTH 12 // 64/5
+#define LOG_HEIGHT 18 // 128/7
+uint8_t u8log_buffer[LOG_WIDTH * LOG_HEIGHT];
 U8G2LOG displog;
 
-void display_setup(void)
+void display_setup()
 {
   display.begin();
   display.setContrast(CONTRAST_FULL);
   //display.enableUTF8Print();  // Can leave this out if using no symbols
   display.setFontMode(1); // "Transparent": Character background not drawn (since we clear the display anyway)
   
-  displog.begin(display, U8LOG_WIDTH, U8LOG_HEIGHT, u8log_buffer);
+  displog.begin(display, LOG_WIDTH, LOG_HEIGHT, u8log_buffer);
   displog.setLineHeightOffset(0);
   displog.setRedrawMode(0);
 }
@@ -242,7 +160,7 @@ void display_numbers()
   if ((cad != prev_cad) || (rg != prev_rg) || (pwr != prev_pwr) || (batt_pct != prev_batt) || batt_low)
   {
     display.clearBuffer();
-    display.setFont(u8g2_font_helvB10_tr);
+    display.setFont(DISPLAY_LABEL_FONT);
     display.setCursor(0, 16);
     display.print("RPM");
     display.setCursor(0, 58);
@@ -253,7 +171,7 @@ void display_numbers()
     if (!batt_low || (ticker % 2)) draw_batt(batt_pct);
     //else blank_batt();
 
-    display.setFont(u8g2_font_helvB24_tn);
+    display.setFont(DISPLAY_NUMBER_FONT);
     right_just(cad, 10, 43, 18);
     right_just(rg, 10, 85, 18);
     right_just(pwr, 10, 127, 18);
@@ -271,7 +189,7 @@ void display_numbers()
   Analog input processing - resistance magnet position and battery
 * ********************************************************************************/
 
-void ADC_setup(void) // Set up the ADC for ongoing resistance measurement
+void ADC_setup() // Set up the ADC for ongoing resistance measurement
 {
   analogReference(AR_INTERNAL); // 3.6V
   analogOversampling(ANALOG_OVERSAMPLE);
@@ -318,7 +236,7 @@ float sinterp(const float x_ref[], const float y_ref[], const float slopes[], in
      advertising.
 * ********************************************************************************/
 
-void startAdv(void)
+void startAdv()
 {
   // FiTness Machine Service requires a Service Data field specifying bike support and availability
   // Per https://www.bluetooth.com/specifications/assigned-numbers/generic-access-profile/) Service Data is Type 0x16
@@ -351,7 +269,7 @@ void startAdv(void)
   Bluefruit.Advertising.start(0); // 0 = Don't stop advertising after n seconds
 }
 
-void stopBLE(void)
+void stopBLE()
 {
   DEBUG("Stopping BLE", "\n")
   // If we're connected, disconnect. Since we only allow one connection, we know that the handle is 0
@@ -364,7 +282,7 @@ void stopBLE(void)
   Bluefruit.Advertising.stop(); // this looks like it will work even if advertising isn't running
 }
 
-void restartBLE(void)
+void restartBLE()
 {
   if (!Bluefruit.connected(0) && !Bluefruit.Advertising.isRunning())
   {
@@ -373,7 +291,7 @@ void restartBLE(void)
   }
 }
 
-void setupFTMS(void)
+void setupFTMS()
 {
   // Configure and start the FTM service
   // See:
@@ -425,7 +343,7 @@ void setupFTMS(void)
 
   char_ftm_feature.begin();
 
-  uint8_t ftmf_data[4] = {0b00000010, 0b01000000, 0b00000000, 0b00000000};
+  const uint8_t ftmf_data[4] = {0b00000010, 0b01000000, 0b00000000, 0b00000000};
   char_ftm_feature.write(ftmf_data, 4);
 
   // Configure the Indoor Bike Data characteristic - See 4.9.1 IN  FTMS_V1.0.pdf
@@ -462,7 +380,7 @@ void setupFTMS(void)
   bike_data.bytes[1] = 0b00000000;
 }
 
-void setupCPS(void)
+void setupCPS()
 {
   // Configure and start the CP service
   // See:
@@ -511,7 +429,7 @@ void setupCPS(void)
   // B3
   //  .0-7 - Reserved
 
-  uint8_t cpf_data[4] = {0x0, 0x0, 0x0, 0x0};
+  const uint8_t cpf_data[4] = {0x0, 0x0, 0x0, 0x0};
   char_cp_feature.setProperties(CHR_PROPS_READ);
   char_cp_feature.setPermission(SECMODE_OPEN, SECMODE_NO_ACCESS);
   char_cp_feature.setFixedLen(4);
@@ -524,7 +442,7 @@ void setupCPS(void)
   // Fixed len = 4
   //
   // 0x01, 0x00, 0x00, 0x00 = "Other"
-  uint8_t cl_data[4] = {0x01, 0x00, 0x00, 0x00};
+  const uint8_t cl_data[4] = {0x01, 0x00, 0x00, 0x00};
   char_sensor_loc.setProperties(CHR_PROPS_READ);
   char_sensor_loc.setPermission(SECMODE_OPEN, SECMODE_NO_ACCESS);
   char_sensor_loc.setFixedLen(4);
@@ -623,7 +541,7 @@ void format_bike_data(float bspeed, float cadence, float resistance, float power
   bike_data.words[4] = power_int;
 }
 
-void format_power_data(void)
+void format_power_data()
 {
   // Fields are
   //   B2-3     = Instantaneous power - UINT16 - W with 1.0 resolution
@@ -679,39 +597,40 @@ void crank_callback()
  ********************************************************************************/
 void init_cal()
 {
-  display.setFont(u8g2_font_5x7_tr);
-  displog.print("KBikeBLE ");
-  displog.println(VERSION);
+  display.setFont(LOG_FONT_BIG);
+  displog.print(F("KBikeBLE\n"));
+  displog.println(F(VERSION));
   displog.println();
+  display.setFont(LOG_FONT);
 
   if (!read_param_file("offset", &res_offset, sizeof(res_offset)))
   {
     res_offset = RESISTANCE_OFFSET;
     write_param_file("offset", &res_offset, sizeof(res_offset));
-    displog.println("OFFSET");
-    displog.println("DEFAULT");
-    displog.println("WRITE:");
+    displog.println(F("OFFSET"));
+    displog.println(F("DEFAULT"));
+    displog.println(F("WRITE:"));
     displog.println(res_offset);
   }
   else
   {
-    displog.print("OFFSET");
-    displog.println(" READ:");
+    displog.println(F("OFFSET")); 
+    displog.println(F(" READ:"));
     displog.println(res_offset);
   }
   if (!read_param_file("factor", &res_factor, sizeof(res_factor)))
   {
     res_factor = RESISTANCE_FACTOR;
     write_param_file("factor", &res_factor, sizeof(res_factor));
-    displog.println("\nFACTOR");
-    displog.println("DEFAULT");
-    displog.println("WRITE:");
+    displog.println(F("\nFACTOR"));
+    displog.println(F("DEFAULT"));
+    displog.println(F("WRITE:"));
     displog.printf("%.1f\n\n", res_factor);
   }
   else
   {
-    displog.print("\nFACTOR");
-    displog.println(" READ:");
+    displog.println(F("\nFACTOR"));
+    displog.println(F(" READ:"));
     displog.printf("%.4f\n", res_factor);
   }
 
@@ -721,7 +640,6 @@ void init_cal()
 /********************************************************************************
  * Startup
  ********************************************************************************/
-
 
 SoftwareTimer update_timer;
 
@@ -739,21 +657,15 @@ void setup()
   }
 #endif
 
-  DWAIT()
-
-  display_setup();
+  // Start the OLED display
+  display_setup(); 
 
   // Set up the internal filesystem (LittleFS), read files, and where any files are missing write defaults
   setup_InternalFS();
   init_cal();
 
-  STEP(10)
-
-  Bluefruit.begin();
-
-  STEP(20)
-
   // Set up Bluetooth
+  Bluefruit.begin();
 
   // Set power - needs only to work in pretty close range
   Bluefruit.setTxPower(BLE_TX_POWER);
@@ -776,7 +688,6 @@ void setup()
 #ifdef BLEBAS
   blebas.begin();
 #endif
-  //  blebas.write(100);
 
   // Setup the FiTness Machine and Cycling Power services
   setupFTMS();
@@ -788,19 +699,15 @@ void setup()
   console_init();
 #endif
 
-STEP(30)
-
   // Setup the advertising packet(s)
   startAdv();
 
   // Crank sensing. A falling edge (switch closure) triggers the interrupt. This counts as a crank event (rotation)
   // if it's been long enough since the last event. The rider could conceivably initiate faux rotations by holding
   // the crank right at a certain spot, but there are similar risks with any scheme.
-  crank_event_time = xTaskGetTickCountFromISR();
+  crank_event_time = xTaskGetTickCount(); // xTaskGetTickCountFromISR();
   pinMode(CRANK_PIN, INPUT_PULLUP);
   attachInterrupt(digitalPinToInterrupt(CRANK_PIN), crank_callback, FALLING);
-
-STEP(40)
 
   // Apply voltage to the resistance pot
   pinMode(RESISTANCE_TOP, OUTPUT);
@@ -810,11 +717,16 @@ STEP(40)
   ftm_active = true;
   cp_active = true;
 
-STEP(50)
-
   // Set up the analog input for resistance measurement
   ADC_setup();
 
+  // With crank sensing handled by the interrupt, everything else - 
+  //   - Bluetooth updates
+  //   - Display updates
+  //   - Battery check
+  //   - Power savings when pedaling stops
+  //   - Notifying the BLEUart console to check for input
+  // is handled by the recurring update() task.
   update_timer.begin(TICK_INTERVAL, update);
   update_timer.start();
   suspendLoop();
@@ -830,8 +742,9 @@ STEP(50)
 #if (POWERSAVE > 0)
 #if (POWERSAVE == 1)
 /*
-Power down until reset. Reset is by a selected level (not edge) on the crank switch GPIO pin.
-We configure reset to occur when the crank switch changes to the opposite of its current state.
+Power down until reset. Reset will be caused by a selected level (not edge) on the crank switch GPIO pin.
+The crank switch closes at one point in the rotation and is likely to be open. We can't be certain,
+so we configure reset to occur when the crank switch changes to the opposite of its current state.
 
 Though the crank switch is usually open because the range of movement during which the magnet is
 nearby is small, it's possible for the pedals to be stopped with the switch closed. The stock
@@ -995,16 +908,10 @@ void process_crank_event()
     crank_still_timer = 0b100; // Reset the shift register used to detect no pedaling
                                // 3 shifts = 3 seconds without an event indicates no pedaling
 
-    restartBLE(); // Be sure BLE is running
+    restartBLE(); // Be sure BLE is running (RestartBLE checks whether it already is.
+                  // there should possibly be a state flag.
 
     new_crank_event = false; // Reset the flag
-
-    // Calculate cadence and clear the event flag
-    //    noInterrupts(); // crank_count and crank_event_time mustn't change
-    //    inst_cadence = (crank_count - last_crank_count) * 60000 / (crank_event_time - prior_event_time);
-    //    last_crank_count = crank_count;
-    //    prior_event_time = crank_event_time;
-    //    interrupts();
   }
   else // If no crank event, check timeouts
   {
@@ -1013,16 +920,18 @@ void process_crank_event()
     {
       inst_cadence = 0;
       stop_time++;
+
+      // Timeouts related to the display
       switch (display_state)
       {
-      case 2: // Full brightness
+      case 2:                     // Full brightness - see whether it's time to dim
         if (stop_time > DIM_TIME)
         {
           display.setContrast(CONTRAST_DIM);
           display_state = 1;
         }
         break;
-      case 1: // Dimmed
+      case 1:                     // Dimmed - see whether it's time to turn off
         if (stop_time > BLANK_TIME)
         {
           display.setPowerSave(1);
@@ -1030,6 +939,8 @@ void process_crank_event()
         }
         break;
       }
+
+      // Timeouts related to further power savings - different according to Bluetooth state
       if (Bluefruit.connected())
       {
         if (stop_time >= BLE_PS_TIME) // Active BLE connection:
@@ -1104,7 +1015,7 @@ bool serial_confirm(String prompt, char expected)
   return (input == expected);
 }
 
-void serial_check(void)
+void serial_check()
 {
   // Simple serial monitor
   // Commands are
@@ -1311,8 +1222,13 @@ void bleuart_send(const char * message)
 #define PBLEN 128
 char pbuffer[PBLEN];
 #define RESPOND(string) bleuart_send(string)
+//#define RESPOND(string) const PROGMEM char * str = string; \
+//                        bleuart_send(str)
 #define BLE_PRINT(format, args...) snprintf(pbuffer, PBLEN, format, args); \
                                    bleuart_send(pbuffer)
+//#define BLE_PRINT(format, args...) const PROGMEM char * fmt = format; \
+//                                   snprintf(pbuffer, PBLEN, fmt, args); \
+//                                   bleuart_send(pbuffer)
 
 void cmd_batt()
 {

@@ -11,7 +11,7 @@ struct cmd_table_t {
 // Define the command set
 extern cmdHandler_t cmd_batt, cmd_res, cmd_showcal, cmd_factor, cmd_offset, cmd_cal, cmd_activate, cmd_write, cmd_read, cmd_defaults, cmd_help;
 
-const cmd_table_t cmd_table[] = {
+const cmd_table_t PROGMEM cmd_table[] = {
   {"batt", cmd_batt, "Show battery status."},
   {"res", cmd_res, "Monitor ADC readings. Any input to stop."},
   {"showcal", cmd_showcal, "Show the calibration currently in use."},
