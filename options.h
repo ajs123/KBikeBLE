@@ -72,8 +72,6 @@
    bike, so enabling it is recommended. Presently, the BLEUart interface is fully developed, while the
    serial interface is not.
 */
-//#define USE_SERIAL     // Incorporate USB serial functions. Will attempt serial connection at startup.
-                         // CAREFUL! With 1/sec updates through a timer task, it must always finish in < 1 sec.
-#define BLEUART // Activates serial over BLE
-#define BLEBAS  // Activate BLE battery service
-
+#define USE_SERIAL  // Incorporate USB serial functions including the console and any debugging.
+define BLEUART     // Activates serial over BLE
+#define BLEBAS      // Activate BLE battery service

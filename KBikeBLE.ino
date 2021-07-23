@@ -16,6 +16,7 @@
 #include "options.h"            // Options of most interest to the end user
 #include "globals.h"
 #include "bike_interface.h"     // Defines the hardware connections to the bike
+#include "BLE_services.h"       // Flags/fields for the BLE services
 #include "power_gear_tables.h"
 #include "calibration.h"
 #include "serial_commands.h"
@@ -83,10 +84,10 @@ bool gear_display = GEAR_DISPLAY;
 #define DISPLAY_LABEL_FONT u8g2_font_helvB10_tr
 #define DISPLAY_NUMBER_FONT u8g2_font_helvB24_tn
 // Log used at startup
-#define LOG_FONT u8g2_font_5x7_tr
+#define LOG_FONT u8g2_font_7x14_tf
 #define LOG_FONT_BIG u8g2_font_7x14_tf
-#define LOG_WIDTH 12 // 64/5
-#define LOG_HEIGHT 18 // 128/7
+#define LOG_WIDTH 9 
+#define LOG_HEIGHT 10 
 uint8_t u8log_buffer[LOG_WIDTH * LOG_HEIGHT];
 U8G2LOG displog;
 
@@ -238,15 +239,6 @@ float sinterp(const float x_ref[], const float y_ref[], const float slopes[], in
 
 void startAdv()
 {
-  // FiTness Machine Service requires a Service Data field specifying bike support and availability
-  // Per https://www.bluetooth.com/specifications/assigned-numbers/generic-access-profile/) Service Data is Type 0x16
-  // Contents are
-  //      B0-1 - Fitness Machine Service UUID - UINT16 - 2 bytes  = 0x1826
-  //      B2   - Flags                        - UINT8  - 1 byte   = 0x01   (Machine available)
-  //      B3-4 - Fitness Machine Type         - UINT16 - 2 bytes  = 0x0020 (Indoor bike supported (bit 5))
-
-  uint8_t FTMS_Adv_Data[5] = {0x26, 0x18, 0x01, 0x20, 0x00};
-
   Bluefruit.Advertising.addService(svc_ftms, svc_cps);   // Advertise the services
   Bluefruit.Advertising.addData(0x16, FTMS_Adv_Data, 5); // Required data field for FTMS
 
@@ -271,7 +263,7 @@ void startAdv()
 
 void stopBLE()
 {
-  DEBUG("Stopping BLE", "\n")
+  //DEBUG("Stopping BLE", "\n")
   // If we're connected, disconnect. Since we only allow one connection, we know that the handle is 0
   // if (Bluefruit.connected(0)) Bluefruit.disconnect(0);
   Bluefruit.disconnect(0); // disconnect() includes check for whether connected
@@ -286,7 +278,7 @@ void restartBLE()
 {
   if (!Bluefruit.connected(0) && !Bluefruit.Advertising.isRunning())
   {
-    DEBUG("Restarting BLE", "\n")
+    //DEBUG("Restarting BLE", "\n")
     Bluefruit.Advertising.start(0);
   }
 }
@@ -294,13 +286,6 @@ void restartBLE()
 void setupFTMS()
 {
   // Configure and start the FTM service
-  // See:
-  // Supported Characteristics:
-  // Name                         UUID    Requirement Properties
-  // ---------------------------- ------  ----------- ----------
-  // Fitness Machine Feature      0x2ACC  Mandatory   Read
-  // Indoor Bike Data             0x2A38  Mandatory   Notify
-
   // First .begin the service, prior to .begin on characteristics
   svc_ftms.begin();
 
@@ -309,161 +294,48 @@ void setupFTMS()
   // a BLECharacteristic will cause it to be added to the last BLEService that
   // was 'begin()'ed!
 
-  // Configure the Fitness Machine Feature characteristic
-  // See:
-  // Properties = Read
-  // Fixed Len  = 4
-  //    B0      = UINT8  - Flag (MANDATORY)
-  //      7     = 0 - Resistance level supported
-  //      6     = 0 - Step count supported
-  //      5     = 0 - Pace supported
-  //      4     = 0 - Elevation gain supported
-  //      3     = 0 - Inclination supported
-  //      2     = 0 - Total distance supported
-  //      1     = 1 - Cadence supported
-  //      0     = 0 - Average speed supported
-  //    B1      = UINT8
-  //      7     = 0 - Force on belt and power output supported
-  //      6     = 1 - Power measurement supported
-  //      5     = 0 - Remaining time supported
-  //      4     = 0 - Elapsed time supported
-  //      3     = 0 - Metabolic equivalent supported
-  //      2     = 0 - Heart rate measurement supported
-  //      1     = 0 - Expended energy supported
-  //      0     = 0 - Stride count supported
-  //    B2      = UINT8
-  //    2-7     = 0 - RESERVED
-  //      0     = 0 - User data retention supported
-  //    B3      = UINT8 - RESERVED
-
   char_ftm_feature.setProperties(CHR_PROPS_READ);
   char_ftm_feature.setPermission(SECMODE_OPEN, SECMODE_NO_ACCESS);
-  char_ftm_feature.setFixedLen(4);
+  char_ftm_feature.setFixedLen(sizeof(ftmf_data));
+  // Should the following callback be set for ftm_feature or for bike_data??
   char_ftm_feature.setCccdWriteCallback(ftm_cccd_callback); // Optionally capture CCCD updates
 
   char_ftm_feature.begin();
 
-  const uint8_t ftmf_data[4] = {0b00000010, 0b01000000, 0b00000000, 0b00000000};
-  char_ftm_feature.write(ftmf_data, 4);
-
-  // Configure the Indoor Bike Data characteristic - See 4.9.1 IN  FTMS_V1.0.pdf
-  // See:
-  // Properties = Notify
-  // Fixed Len  = 8
-  //    B0      = UINT8 - Flag (MANDATORY)
-  //      7     = 0 - Average power present
-  //      6     = 1 - Instantaneous power present
-  //      5     = 1 - Resistance level present
-  //      4     = 0 - Total distance present
-  //      3     = 0 - Average cadence present
-  //      2     = 1 - Instantaneous cadence present
-  //      1     = 0 - Average speed present
-  //      0     = 0 - More Data (Instantaneous speed field not present)
-  //    B1      = UINT 8
-  //      4     = 0 - Remaining time present
-  //      3     = 0 - Elapsed time present
-  //      2     = 0 - Metabolic equivalent present
-  //      1     = 0 - Heart rate present
-  //      0     = 0 - Expended energy present
-  //    B2-3    = Instantaneous speed   - UINT16 - Km/Hr with 0.01 resolution
-  //    B4-5    = Instantaneous cadence - UINT16 - 1/min with 0.5 resolution
-  //    B6-7    = Instantaneous power   - UINT16 - W with 1.0 resolution
+  char_ftm_feature.write(ftmf_data, sizeof(ftmf_data));
 
   char_bike_data.setProperties(CHR_PROPS_NOTIFY);
   char_bike_data.setPermission(SECMODE_OPEN, SECMODE_NO_ACCESS);
-  char_bike_data.setFixedLen(10);
+  char_bike_data.setFixedLen(sizeof(bike_data));
 
   char_bike_data.begin();
 
-  // Load flags into the data array. They won't change.
-  bike_data.bytes[0] = 0b01100100;
-  bike_data.bytes[1] = 0b00000000;
 }
 
 void setupCPS()
 {
   // Configure and start the CP service
-  // See:
-  // Supported Characteristics:
-  // Name                         UUID    Requirement Properties
-  // ---------------------------- ------  ----------- ----------
-  // Cycling Power Feature        0x2A65  Mandatory   Read
-  // Cycling Power Measurement    0x2A63  Mandatory   Notify
-  // Sensor Location              0x2A5D  Mandatory   Read
-
   // First .begin the service, prior to .begin on characteristics
   svc_cps.begin();
 
-  // Configure the Cycling Power Feature characteristic
-  // See https://github.com/sputnikdev/bluetooth-gatt-parser/blob/master/src/main/resources/gatt/characteristic/org.bluetooth.characteristic.cycling_power_feature.xml
-  // Properties = Read
-  // Fixed len = 4
-  //
-  // B0
-  //   .7  - Accumulated energy supported              - 0
-  //   .6  - Top and bottom dead spot angles supported - 0
-  //   .5  - Extreme angles supported                  - 0
-  //   .4  - Extreme magnitudes supported              - 0
-  //   .3  - Crank revolution data supported           - 0
-  //   .2  - Wheel revolution data supported           - 0
-  //   .1  - Accumulated torque supported              - 0
-  //   .0  - Pedal power balance supported             - 0
-  // B1
-  //   .7  - Span Length Adjustment Supported          - 0
-  //   .6  - Chain Weight Adjustment Supported         - 0
-  //   .5  - Chain Length Adjustment Supported         - 0
-  //   .4  - Crank Length Adjustment Supported         - 0
-  //   .3  - Multiple Sensor Locations Supported       - 0
-  //   .2  - Cyc Pow Meas Char Cont Masking Supported  - 0
-  //   .1  - Offset Compensation Supported             - 0
-  //   .0  - Offset Compensation Indicator Supported   - 0
-  // B2
-  //   .7  - Reserved
-  //   .6  - Reserved
-  //  .4-5 - Distribute System Support                 - 0
-  //  .4-5 - [00 Legacy; 01 No; 02 Yes; 03 RFU         - 0
-  //   .3  - Enhanced Offset Compensation Supported    - 0
-  //   .2  - Factory Calibration Date Supported        - 0
-  //   .1  - Instantaneous Measu Direction Supported   - 0
-  //   .0  - Sensor Meas Context (0 Force, 1 Torque)   - 0
-  // B3
-  //  .0-7 - Reserved
-
-  const uint8_t cpf_data[4] = {0x0, 0x0, 0x0, 0x0};
   char_cp_feature.setProperties(CHR_PROPS_READ);
   char_cp_feature.setPermission(SECMODE_OPEN, SECMODE_NO_ACCESS);
-  char_cp_feature.setFixedLen(4);
+  char_cp_feature.setFixedLen(sizeof(cpf_data));
   char_cp_feature.begin();
-  char_cp_feature.write(cpf_data, 4);
+  char_cp_feature.write(cpf_data, sizeof(cpf_data));
 
-  // Configure the Sensor Location characteristic
-  // See https://github.com/sputnikdev/bluetooth-gatt-parser/blob/master/src/main/resources/gatt/characteristic/org.bluetooth.characteristic.sensor_location.xml
-  // Properties = Read
-  // Fixed len = 4
-  //
-  // 0x01, 0x00, 0x00, 0x00 = "Other"
-  const uint8_t cl_data[4] = {0x01, 0x00, 0x00, 0x00};
   char_sensor_loc.setProperties(CHR_PROPS_READ);
   char_sensor_loc.setPermission(SECMODE_OPEN, SECMODE_NO_ACCESS);
-  char_sensor_loc.setFixedLen(4);
+  char_sensor_loc.setFixedLen(sizeof(cl_data));
   char_sensor_loc.begin();
-  char_sensor_loc.write(cl_data, 4);
-
-  // Configure the Cycle Power Measurement characteristic
-  // See https://github.com/sputnikdev/bluetooth-gatt-parser/blob/master/src/main/resources/gatt/characteristic/org.bluetooth.characteristic.cycling_power_measurement.xml
-  // Properties = Notify
-  // Fixed len = 8 // Flags[2], InstPower[2], CrankRev[2], Timestamp[2]
-  //
-  // Flags = { 0x20, 0x00 } = Crank Revolution Data present
+  char_sensor_loc.write(cl_data, sizeof(cl_data));
 
   char_cp_measurement.setProperties(CHR_PROPS_NOTIFY);
   char_cp_measurement.setPermission(SECMODE_OPEN, SECMODE_NO_ACCESS);
-  char_cp_measurement.setFixedLen(8);
+  char_cp_measurement.setFixedLen(sizeof(power_data));
   char_cp_measurement.setCccdWriteCallback(cps_cccd_callback); // Optionally capture CCCD updates
   char_cp_measurement.begin();
 
-  power_data.bytes[0] = 0x20; // Won't change
-  power_data.bytes[1] = 0.00;
 }
 
 void connect_callback(uint16_t conn_handle)
@@ -524,21 +396,21 @@ void cps_cccd_callback(uint16_t conn_hdl, BLECharacteristic *chr, uint16_t cccd_
   }
 }
 
-void format_bike_data(float bspeed, float cadence, float resistance, float power)
+void format_bike_data()
 {
   //    B2-3    = Instantaneous speed   - UINT16 - Km/Hr with 0.01 resolution
   //    B4-5    = Instantaneous cadence - UINT16 - 1/min with 0.5 resolution
   //    B6-7    = Instantaneous power   - UINT16 - W with 1.0 resolution
 
-  uint16_t speed_int = round(bspeed / 0.01);
-  uint16_t cadence_int = round(cadence / 0.5);
-  uint16_t power_int = round(power);
-  uint16_t resistance_int = round(resistance);
+  uint16_t speed_int = roundpos(bspeed / 0.01);
+  uint16_t cadence_int = roundpos(cadence / 0.5);
+  uint16_t power_int = roundpos(power);
+  uint16_t resistance_int = roundpos(resistance);
 
-  bike_data.words[1] = speed_int;
-  bike_data.words[2] = cadence_int;
-  bike_data.words[3] = resistance_int;
-  bike_data.words[4] = power_int;
+  bike_data.data[0] = speed_int;
+  bike_data.data[1] = cadence_int;
+  bike_data.data[2] = resistance_int;
+  bike_data.data[3] = power_int;
 }
 
 void format_power_data()
@@ -552,10 +424,10 @@ void format_power_data()
   //uint16_t revs = crank_count;
   //uint16_t et = ((crank_event_time & 0xFFFF) * 1024 / 1000) & 0xFFFF ; // uint32 millisec to uint16 1024ths
 
-  power_data.words[1] = roundpos(power);
+  power_data.data[0] = roundpos(power);
   noInterrupts(); // crank_count and crank_ticks are set in the crank ISR
-  power_data.words[2] = crank_count;
-  power_data.words[3] = crank_ticks;
+  power_data.data[1] = crank_count;
+  power_data.data[2] = crank_ticks;
   interrupts();
 }
 
@@ -625,7 +497,7 @@ void init_cal()
     displog.println(F("\nFACTOR"));
     displog.println(F("DEFAULT"));
     displog.println(F("WRITE:"));
-    displog.printf("%.1f\n\n", res_factor);
+    displog.printf("%.1f\n", res_factor);
   }
   else
   {
@@ -647,14 +519,6 @@ void setup()
 {
 #ifdef USE_SERIAL
   Serial.begin(115200);
-  uint16_t ticks;
-  for (ticks = 1000; !Serial && (ticks > 0); ticks--)
-    delay(10); // Serial, if present, takes some time to connect
-  if (Serial)
-  {
-    serial_present = true;
-    Serial.setTimeout(5000);
-  }
 #endif
 
   // Start the OLED display
@@ -684,20 +548,24 @@ void setup()
   bledis.setModel("Bluefruit Feather52");
   bledis.begin();
 
-// Start the BLE Battery Service and set it to 100%
-#ifdef BLEBAS
-  blebas.begin();
-#endif
+  // Start the BLE Battery Service and set it to 100%
+  #ifdef BLEBAS
+    blebas.begin();
+  #endif
 
   // Setup the FiTness Machine and Cycling Power services
   setupFTMS();
   setupCPS();
 
-// Start the BLEUart service
-#ifdef BLEUART
-  bleuart.begin();
-  console_init();
-#endif
+  // Start the BLEUart service
+  #ifdef BLEUART
+    bleuart.begin();
+  #endif
+
+  // Start the console
+  #if defined(BLEUART) || defined(USE_SERIAL)
+    console_init();
+  #endif
 
   // Setup the advertising packet(s)
   startAdv();
@@ -713,12 +581,12 @@ void setup()
   pinMode(RESISTANCE_TOP, OUTPUT);
   digitalWrite(RESISTANCE_TOP, HIGH);
 
+  // Set up the analog input for resistance measurement
+  ADC_setup();
+
   // Set both notify characteristics to be active. Whichever the client responds to becomes the sole active characteristic
   ftm_active = true;
   cp_active = true;
-
-  // Set up the analog input for resistance measurement
-  ADC_setup();
 
   // With crank sensing handled by the interrupt, everything else - 
   //   - Bluetooth updates
@@ -831,15 +699,13 @@ void resume()
      * Updating the display as needed.
 
    These are all handled by a single function, update(), which calls each individual function 
-   at the appropriate times. update() is scheduled as a recurring task in FreeRTOS which is part
-   of the Adafruit Arduino core for the nRF52840. This gives better performance (lower energy) than
-   using the traditional loop() with delay(), despite the FreeRTOS tickless idle mode by which
-   delay() ought to basically be a sleep().
+   at the appropriate times. update() is scheduled as a recurring task, twice per second,
+   in FreeRTOS (part of the Adafruit Arduino core for the nRF52840. In the extended absence of 
+   pedaling, one option for power savings is to simply un-schedule this task, leaving nothing 
+   to do until pedaling resumes, and allowing the system to default into a low-power state.
 
-   To provide good responsiveness for the user, twice per second the bike resistance is measured 
-   and the display is updated if anything has changed. The battery level is measured every 30 seconds. 
-   Everything else - power calculation and updating Bluetooth are done once per second. These could be 
-   scheduled as three separate recurring tasks in FreeRTOS but that doesn't seem worth the trouble.
+   The BLE console interface is handled by a low-priority process that sits idle until
+   triggered (the FreeRTOS term is Notify). update() does this once per second.
  **********************************************************************************************/
 
 #define BATT_TICKS 60     // Battery check every __ ticks
@@ -974,138 +840,19 @@ void updateBLE()
     if (cp_active)
     {
       format_power_data();
-      char_cp_measurement.notify((uint8_t *)&power_data, 8);
+      char_cp_measurement.notify((uint8_t *)&power_data, 8);     // The cast should not be needed
     }
 
     if (ftm_active)
     {
       bspeed = 20 * cadence / 60; // NOT A REAL CAL OF ANY KIND!
-      format_bike_data(bspeed, cadence, resistance, power);
+      format_bike_data();
       char_bike_data.notify((uint8_t *)&bike_data, 10);
     }
   }
 }
 
-#ifdef USE_SERIAL
-
-bool new_cal = false;
-float new_offset;
-float new_factor;
-char input;
-int n;
-
-char serial_cmd()
-{
-  int cmd = Serial.read(); // Grab the first character
-  while (Serial.available())
-    Serial.read(); // Flush the rest - eliminates type-ahead and CR/LF
-  return cmd;
-}
-
-bool serial_confirm(String prompt, char expected)
-{
-  while (Serial.available())
-    Serial.read(); // Flush
-  Serial.print(prompt);
-  n = Serial.readBytes(&input, 1);
-  if (n > 0)
-    Serial.println(input);
-  while (Serial.available())
-    Serial.read();
-  return (input == expected);
-}
-
-void serial_check()
-{
-  // Simple serial monitor
-  // Commands are
-  //     R - report raw resistance value
-  //     O - report the current offset
-  //     F - report the current scale factor
-  //     E - report current cal values
-  //     C - enter cal values
-  //     A - make new cal values active
-  //     W - write cal values to file
-
-  char cmd = serial_cmd();
-  if (cmd < 0)
-    return;
-
-  switch (cmd)
-  {
-  case 'R':
-    Serial.print("\nRaw R ");
-    Serial.println(raw_resistance);
-    break;
-  case 'O':
-    Serial.print("\nOffset ");
-    Serial.println(res_offset, 2);
-    break;
-  case 'F':
-    Serial.print("\nFactor ");
-    Serial.println(res_factor, 4);
-    break;
-  case 'C':
-    Serial.print("\nEnter cal...\n   --> New slope --> ");
-    new_factor = Serial.parseFloat(SKIP_WHITESPACE);
-    if (new_factor == 0)
-    {
-      Serial.println(" ... timeout\n");
-      break;
-    }
-    Serial.println(new_factor);
-    Serial.print("   --> New intercept --> ");
-    new_offset = Serial.parseFloat(SKIP_WHITESPACE);
-    if (new_offset == 0)
-    {
-      Serial.println(" ... timeout\n");
-      break;
-    }
-    Serial.println(new_offset);
-    Serial.println("Use A to activate.\n");
-    new_cal = true;
-    break;
-  case 'A':
-    if (!new_cal)
-    {
-      Serial.println("\nEnter cal before trying to activate.");
-      break;
-    }
-    Serial.println("\nReady to activate...");
-    Serial.print("   Factor ");
-    Serial.println(new_factor, 4);
-    Serial.print("   Offset ");
-    Serial.println(new_offset, 2);
-    if (!serial_confirm(" A to activate; any other key or 5 seconds to skip --> ", 'A'))
-    {
-      Serial.println(" ... skipped\n");
-      break;
-    }
-    res_factor = new_factor;
-    res_offset = new_offset;
-    new_cal = false;
-    Serial.println("\n New cal factors active.\n");
-    break;
-  case 'W':
-    Serial.println(" Ready to save cal...");
-    Serial.print("   Factor ");
-    Serial.println(res_factor, 4);
-    Serial.print("    OFFSET ");
-    Serial.println(res_offset, 2);
-    Serial.print(" W to write, or any other key or 5 seconds to skip -->");
-    if (!serial_confirm(" W to write; any other key or 5 seconds to skip --> ", 'W'))
-    {
-      Serial.println(" ... skipped\n");
-      break;
-    }
-    //write_cal_file();
-    Serial.println("\n** If we had the filesystem set up, cal would have been written. **\n");
-    break;
-  }
-}
-#endif
-
-#ifdef BLEUART
+#if defined(BLEUART) || defined(USE_SERIAL)
 #define SBUF_LEN 20
 char sbuffer[SBUF_LEN];  // Serial console input buffer
 char cmd[SBUF_LEN];     // Tokenized command
@@ -1119,7 +866,9 @@ uint8_t awaiting_timer;  // Timeout counter for confirmation
 float new_factor;
 float new_offset;
   
-TaskHandle_t ble_task_handle;
+TaskHandle_t console_task_handle;
+
+Stream * console = nullptr;
 
 inline void console_clear()  // Clears the console for fresh input
 {
@@ -1141,16 +890,52 @@ inline void console_reset()
 
 inline void console_init()
 {
-  bool result = xTaskCreate(bleuart_check, "BLEuartCheck", SCHEDULER_STACK_SIZE_DFLT, ( void * ) 1, TASK_PRIO_LOW, &ble_task_handle);
+  #ifdef USE_SERIAL    // These shouldn't be needed
+    console = &Serial;
+  #endif
+  #ifdef BLEUART
+    console = &bleuart;
+  #endif
+  bool result = xTaskCreate(console_check, "ConsoleCheck", SCHEDULER_STACK_SIZE_DFLT, 
+                            ( void * ) 1, TASK_PRIO_LOW, &console_task_handle);
   console_clear();
   console_reset();
 }
 
-void bleuart_take_input()
+bool console_source_check()
 {
-  while (bleuart.available())
+  bool avail = false;
+
+  #ifdef USE_SERIAL                 // If enabled, check Serial
+    bool s = Serial.available();
+    if (s) 
     {
-      uint8_t c = (uint8_t) bleuart.read();
+      console = &Serial;
+      avail = true;
+    }
+  #endif
+
+  #ifdef BLEUART                    // If enabled, check BLEUart
+  bool b = bleuart.available();
+  if (b)
+  {
+    console = &bleuart;
+    avail = true;
+    #ifdef USE_SERIAL
+      if (s)                         // BLE has precedence, so dump any serial input
+        while (Serial.available()) Serial.read();   
+    #endif
+  }
+  #endif
+  
+  return avail;
+}
+
+void console_take_input()
+{
+  while (console->available())  // Might need && !new_input and flush at the end to be sure to get only one line
+    {
+      uint8_t c = (uint8_t) console->read();
       switch (c)
       {
       case 32: // delimeter
@@ -1194,46 +979,48 @@ void bleuart_take_input()
       default:
         if (sbix < SBUF_LEN - 1)
           sbuffer[sbix++] = tolower(c); // Add the character to the pending command or argument
-        //std::cout << sbuffer << "\n";
         break;
       }
     }
 }
 
 #define BLEUART_MAX_MSG 20
+
 // Send a (relatively) lengthy message over BLE.
 // BLEUart messages are limited to the BLE MTU - 3. The bleuart library print/write functions will truncate
 // anything longer. So we need our own function to send longer strings in pieces.
-void bleuart_send(const char * message)
+// For simplicity (right now) this is imposed upon both BLE and Serial.
+void console_send(const char * message)
 {
   size_t index = 0;
   size_t last = strlen(message);  
   while (last - index >= BLEUART_MAX_MSG)
   {
-    bleuart.write(message + index, BLEUART_MAX_MSG);
+    console->write(message + index, BLEUART_MAX_MSG);
     index += BLEUART_MAX_MSG;
   }
   if (index < last)
   {
-    bleuart.write(message + index, last - index);
+    console->write(message + index, last - index);
   }
 }
-
+/*
+void console_send(const char * message)
+{
+  console->write((uint8_t*) message, strlen(message));
+  //console->cBLEUart::write(message, strlen(message));
+} 
+*/
 #define PBLEN 128
 char pbuffer[PBLEN];
-#define RESPOND(string) bleuart_send(string)
-//#define RESPOND(string) const PROGMEM char * str = string; \
-//                        bleuart_send(str)
-#define BLE_PRINT(format, args...) snprintf(pbuffer, PBLEN, format, args); \
-                                   bleuart_send(pbuffer)
-//#define BLE_PRINT(format, args...) const PROGMEM char * fmt = format; \
-//                                   snprintf(pbuffer, PBLEN, fmt, args); \
-//                                   bleuart_send(pbuffer)
+#define CONSOLE_RESP(string) console_send(string)
+#define CONSOLE_PRINT(format, args...) snprintf(pbuffer, PBLEN, format, args); \
+                                      console_send(pbuffer)
 
 void cmd_batt()
 {
-  BLE_PRINT("Battery voltage %.2f \n", batt_mvolts/1000);//batt_mvolts*1000);
-  BLE_PRINT(" %d%% charge\n\n", batt_pct);
+  CONSOLE_PRINT("Battery voltage %.2f \n", batt_mvolts/1000);//batt_mvolts*1000);
+  CONSOLE_PRINT(" %d%% charge\n\n", batt_pct);
 }
 
 void cmd_res()
@@ -1243,14 +1030,14 @@ void cmd_res()
   {
     if (raw_resistance != last_resistance)
     {
-      BLE_PRINT("Raw ADC value %d\n", raw_resistance);
-      BLE_PRINT("Resistance %.1f%%\n", resistance);
-      BLE_PRINT("Keiser gear number %d\n\n", gear);
+      CONSOLE_PRINT("Raw ADC value %d\n", raw_resistance);
+      CONSOLE_PRINT("Resistance %.1f%%\n", resistance);
+      CONSOLE_PRINT("Keiser gear number %d\n\n", gear);
       last_resistance = raw_resistance;
     }
-    if (bleuart.available())
+    if (console->available())
     {
-      bleuart.flush();
+      while (console->available()) console->read();  //NOTE: bleuart.flush() flushes input; Serial.flush() flushes output
       break;
     }
     delay(TICK_INTERVAL);
@@ -1259,41 +1046,41 @@ void cmd_res()
 
   void cmd_showcal()
   {
-    BLE_PRINT("Offset %.1f; factor %.4f\n\n", res_offset, res_factor);
+    CONSOLE_PRINT("Offset %.1f; factor %.4f\n\n", res_offset, res_factor);
   }
 
   void cmd_factor()
   {
     if (arg[0] == 0) //Should check for numeric as well
     {
-      RESPOND("Factor command requires a numeric value.\n\n");
+      CONSOLE_RESP("Factor command requires a numeric value.\n\n");
       return;
     }
     new_factor = atof(arg);
-    BLE_PRINT("New factor will be %.4f  .\n", new_factor);
-    RESPOND("Use activate to have the bike use the new value.\n\n");
+    CONSOLE_PRINT("New factor will be %.4f  .\n", new_factor);
+    CONSOLE_RESP("Use activate to have the bike use the new value.\n\n");
   }
 
   void cmd_offset()
   {
     if (arg[0] == 0) //Should check for numeric as well
     {
-      RESPOND("Offset command requires a numeric value.\n\n");
+      CONSOLE_RESP("Offset command requires a numeric value.\n\n");
       return;
     }
     new_offset = atof(arg);
-    BLE_PRINT("New offset will be %.1f  .\n", new_offset);
-    RESPOND("Use activate to have the bike use the new value.\n\n");
+    CONSOLE_PRINT("New offset will be %.1f  .\n", new_offset);
+    CONSOLE_RESP("Use activate to have the bike use the new value.\n\n");
   }
 
   void cmd_defaults()
   {
     new_offset = RESISTANCE_OFFSET;
     new_factor = RESISTANCE_FACTOR;
-    RESPOND("\nDefaults...\n");
-    BLE_PRINT("New offset will be %.1f  .\n", new_offset);
-    BLE_PRINT("New factor will be %.4f  .\n", new_factor);
-    RESPOND("Use activate to have the bike use these values.\n\n");
+    CONSOLE_RESP("\nDefaults...\n");
+    CONSOLE_PRINT("New offset will be %.1f  .\n", new_offset);
+    CONSOLE_PRINT("New factor will be %.4f  .\n", new_factor);
+    CONSOLE_RESP("Use activate to have the bike use these values.\n\n");
   }
 
   uint8_t i;
@@ -1304,7 +1091,7 @@ void cmd_res()
   {
     for (i = steps; i > 0; i--)
     {
-      BLE_PRINT(" %d..", i);
+      CONSOLE_PRINT(" %d..", i);
       delay(time);
     }
   }
@@ -1312,36 +1099,36 @@ void cmd_res()
   {
     if (AWAITING_CONF())
     {
-      RESPOND("\n\nPlace the calibration tool on the flywheel and rotate the flywheel so that the calibration tool contacts the magnet assembly.\n");
+      CONSOLE_RESP("\n\nPlace the calibration tool on the flywheel and rotate the flywheel so that the calibration tool contacts the magnet assembly.\n");
       delay_message(5, 1000);
       //base = analogRead(RESISTANCE_PIN);  // Baseline reading - should increase from here
-      RESPOND("\nRotate the magnet assembly by hand so that the magnet settles into the pocket in the calibration tool.");
-      RESPOND(" Do not use the lever!\n");
+      CONSOLE_RESP("\nRotate the magnet assembly by hand so that the magnet settles into the pocket in the calibration tool.");
+      CONSOLE_RESP(" Do not use the lever!\n");
       delay_message(5, 1000);
-      RESPOND("\n\nHold while readings are taken...\n");
+      CONSOLE_RESP("\n\nHold while readings are taken...\n");
       uint32_t cal_reading = 0;
       for (uint8_t i = 10; i > 0; i--)
       {
         reading = analogRead(RESISTANCE_PIN);
-        BLE_PRINT("   %d \n", reading);
+        CONSOLE_PRINT("   %d \n", reading);
         cal_reading += reading;
         delay(200);
       }
       cal_reading /= 10;
-      BLE_PRINT("Done. Average was %d.\n", cal_reading);
+      CONSOLE_PRINT("Done. Average was %d.\n", cal_reading);
       new_offset = cal_reading - CALTOOL_RES/res_factor;
-      BLE_PRINT("\nThe new offset is %.1f.\n", new_offset);
-      RESPOND("Use activate to have the bike use these values.\n\n");
+      CONSOLE_PRINT("\nThe new offset is %.1f.\n", new_offset);
+      CONSOLE_RESP("Use activate to have the bike use these values.\n\n");
       awaiting_conf = AWAITING_NONE;
   }
   else 
   {
-      RESPOND("Enter the calibration procedure.\n");
-      RESPOND("This will set the offset to match the bike.\n");
-      RESPOND("If for any reason you need to change the factor, enter and activate it *before* proceeding.\n");
-      RESPOND("\nBe sure that the resistance lever is at the bottom (lowest gear)");
-      RESPOND(" and have the calibration tool ready to place on the flywheel.\n");
-      RESPOND("Y to continue...");
+      CONSOLE_RESP("Enter the calibration procedure.\n");
+      CONSOLE_RESP("This will set the offset to match the bike.\n");
+      CONSOLE_RESP("If for any reason you need to change the factor, enter and activate it *before* proceeding.\n");
+      CONSOLE_RESP("\nBe sure that the resistance lever is at the bottom (lowest gear)");
+      CONSOLE_RESP(" and have the calibration tool ready to place on the flywheel.\n");
+      CONSOLE_RESP("Y to continue...");
       awaiting_conf = cmd_number;
       awaiting_timer = CONFIRMATION_TIMEOUT ;
 
@@ -1354,14 +1141,14 @@ void cmd_activate()
   {
       res_offset = new_offset;
       res_factor = new_factor;
-      RESPOND("\nActivate factor and offset confirmed.\n");
-      BLE_PRINT("Offset %.1f; factor %.4f\n\n", res_offset, res_factor);
+      CONSOLE_RESP("\nActivate factor and offset confirmed.\n");
+      CONSOLE_PRINT("Offset %.1f; factor %.4f\n\n", res_offset, res_factor);
       awaiting_conf = AWAITING_NONE;
   }
   else 
   {
-      BLE_PRINT("Factor will be %.4f and offset will be %.1f .\n", new_factor, new_offset);
-      RESPOND("Y to make these the active values...");
+      CONSOLE_PRINT("Factor will be %.4f and offset will be %.1f .\n", new_factor, new_offset);
+      CONSOLE_RESP("Y to make these the active values...");
       awaiting_conf = cmd_number;
       awaiting_timer = CONFIRMATION_TIMEOUT ;
   }
@@ -1374,19 +1161,19 @@ void cmd_write()
       if (write_param_file("offset", &res_offset, sizeof(res_offset)) &
           write_param_file("factor", &res_factor, sizeof(res_factor)) )
           {
-            RESPOND("\nWrite confirmed.\n");
+            CONSOLE_RESP("\nWrite confirmed.\n");
           }
           else
           {
-            RESPOND("\Failed to write the files.\n");
+            CONSOLE_RESP("\Failed to write the files.\n");
           }
       awaiting_conf = AWAITING_NONE;
   }
   else 
   {
-      RESPOND("Currently active factor and offset are...\n");
-      BLE_PRINT("Offset %.1f; factor %.4f\n", res_offset, res_factor);
-      RESPOND("Y to write these to the file...");
+      CONSOLE_RESP("Currently active factor and offset are...\n");
+      CONSOLE_PRINT("Offset %.1f; factor %.4f\n", res_offset, res_factor);
+      CONSOLE_RESP("Y to write these to the file...");
       awaiting_conf = cmd_number;
       awaiting_timer = CONFIRMATION_TIMEOUT ;
   }
@@ -1397,18 +1184,18 @@ void cmd_read()
   if (read_param_file("offset", &new_offset, sizeof(new_offset)) &
       read_param_file("factor", &new_factor, sizeof(new_factor)))
     {
-      RESPOND("Read from the parameter files:");
-      BLE_PRINT("Offset %.1f; factor %.4f\n", new_offset, new_factor);
-      RESPOND("Y to write these to the file...");
+      CONSOLE_RESP("Read from the parameter files:");
+      CONSOLE_PRINT("Offset %.1f; factor %.4f\n", new_offset, new_factor);
+      CONSOLE_RESP("Y to write these to the file...");
     }
 }
 
 void cmd_help()
 {
-    RESPOND("\n");
+    CONSOLE_RESP("\n");
     for (int i = 0; i < n_cmds; i++)
     {
-        BLE_PRINT("%s - %s \n", cmd_table[i].cmd, cmd_table[i].help);
+        CONSOLE_PRINT("%s - %s \n", cmd_table[i].cmd, cmd_table[i].help);
         // RESPOND(cmd_table[i].cmd);
         // RESPOND(" - ");
         // RESPOND(cmd_table[i].help);
@@ -1425,7 +1212,7 @@ void process_cmd()
           cmd_table[awaiting_conf].cmdHandler();
       }
       else {
-          RESPOND("Canceled.\n");
+          CONSOLE_RESP("Canceled.\n");
           awaiting_conf = AWAITING_NONE;
       }
       //awaiting_conf = AWAITING_NONE;   // Each handler needs to reset awaiting_conf
@@ -1442,18 +1229,18 @@ void process_cmd()
       return;
     }
   }
-  RESPOND("Not a valid command.");
+  CONSOLE_RESP("Not a valid command.");
   cmd_help();
   return;
 }
 
-void bleuart_check(void *notUsed)
+void console_check(void *notUsed)
 {
   uint32_t puNotificationValue;
   while (1)
   {
     xTaskNotifyWait(0x00, portMAX_DELAY, &puNotificationValue, DELAY_FOREVER); // Just sit here, blocked, until update() notifies us
-    bleuart_take_input();  // Take in whatever's there
+    console_take_input();  // Take in whatever's there
     if (new_input)
     {
       process_cmd();       
@@ -1462,11 +1249,11 @@ void bleuart_check(void *notUsed)
     }
     else if (AWAITING_CONF())
     {
-      RESPOND(".");
+      CONSOLE_RESP(".");
       if (--awaiting_timer == 0)
       {
         awaiting_conf = AWAITING_NONE;
-        RESPOND("Cancelled.\n\n");
+        CONSOLE_RESP("Cancelled.\n\n");
         console_clear();
       }
     }
@@ -1496,10 +1283,6 @@ void update(TimerHandle_t xTimerID)
 // Things that happens on every tick -------------------------------------------------------------------------------------
   update_resistance();
 
-#ifdef USE_SERIAL
-  //serial_check();  // Can't do this here in its current form because it can take longer than the timer interval
-#endif
-
 // Things happen at the default tick interval ----------------------------------------------------------------------------
   if ((ticker % DEFAULT_TICKS) == 0)
   {
@@ -1513,9 +1296,9 @@ void update(TimerHandle_t xTimerID)
     updateBLE();
   }
 
-#ifdef BLEUART
-  // NOTE: It may be OK to just unblock. The if() is intended to avoid the overhead of the task notify
-  if (bleuart.available() || AWAITING_CONF()) xTaskNotifyGive(ble_task_handle); // Unblock bleuart_check()
+#if defined(BLEUART) || defined(USE_SERIAL)
+  // If there's console input, select the corresponding source and unblock the handler
+  if (console_source_check() || AWAITING_CONF()) xTaskNotifyGive(console_task_handle); 
 #endif
 
   // Things that happen on BATT_TICKS ------------------------------------------------------------------------------------

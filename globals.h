@@ -8,15 +8,6 @@
 #include <bluefruit.h> // nrf52 built-in bluetooth
 #include "options.h"
 
-// BLE data blocks addressable as bytes for flags and words for data
-union ble_data_block
-{ // Used to set flag bytes (0, 1) and data uint16's (words 1, ...)
-  uint8_t bytes[2];
-  uint16_t words[16];
-};
-union ble_data_block bike_data;  // For the Bike Data Characteristic (FiTness Machine Service)
-union ble_data_block power_data; // For the Cycling Power Measurement Characteristic (Cycling Power Service)
-
 // Globals. Variable accessed in multiple places are declared here.
 // Those used only in specific functions are declared within or nearby.
 
@@ -76,8 +67,39 @@ BLEDis bledis; // DIS (Device Information Service) helper class instance
 #ifdef BLEBAS
 BLEBas blebas; // BAS (Battery Service) helper class instance
 #endif
+
 #ifdef BLEUART
-BLEUart bleuart; // UART over BLE
+#define BLEUART_MAX_MSG 20
+
+/*
+class cBLEUart : public BLEUart
+{
+  //using BLEUart::BLEUart;
+public:
+  size_t write(const uint8_t *content, size_t len);
+};
+  
+size_t cBLEUart::write(const uint8_t *content, size_t len) // Needs to match a virtual function in BLEUart
+{
+  pinMode(LED_BUILTIN, OUTPUT);
+  digitalWrite(LED_BUILTIN, HIGH);
+  size_t index = 0;
+  size_t last = len;  
+  while (last - index >= BLEUART_MAX_MSG)
+  {
+    BLEUart::write(content + index, BLEUART_MAX_MSG);
+    index += BLEUART_MAX_MSG;
+  }
+  if (index < last)
+  {
+    BLEUart::write(content + index, last - index);
+  }
+}
+  
+cBLEUart bleuart; //(int)BLEUART_MAX_MSG); 
+*/
+
+BLEUart bleuart;
 #endif
 
 #endif

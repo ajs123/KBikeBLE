@@ -1,6 +1,4 @@
 ## TODO
-- Console access
-  - Option to use conventional USB serial instead of the spiffier BLE Uart service
 - Documentation
   - More comprehensive writeup of calibration
   - Tutorial how-to-build for less experienced folks
@@ -21,10 +19,8 @@
 - More comprehensive code cleanup
   - Split code across multiple source files
   - Clean up code in connect callbacks
-  - Consistent use of globals rather than passed parameters for BLE characteristic data.
   - Review for functions that should be inline
   - C++ style for C-style #defines and macros where appropriate
-
 
 ONE DAY?
 - Servo on the resistance for full FTMS function!
