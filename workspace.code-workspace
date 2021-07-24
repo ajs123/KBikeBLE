@@ -9,7 +9,16 @@
 	],
 	"settings": {
 		"files.associations": {
-			"iostream": "cpp"
+			"iostream": "cpp",
+			"ostream": "cpp",
+			"*.tcc": "cpp",
+			"exception": "cpp",
+			"memory_resource": "cpp",
+			"fstream": "cpp",
+			"iosfwd": "cpp",
+			"new": "cpp",
+			"sstream": "cpp",
+			"streambuf": "cpp"
 		},
 		"telemetry.enableCrashReporter": false
 	}

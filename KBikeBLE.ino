@@ -984,38 +984,16 @@ void console_take_input()
     }
 }
 
-#define BLEUART_MAX_MSG 20
+// void console_send(const char * message)
+// {
+//   console->write((uint8_t*) message, strlen(message));
+// } 
 
-// Send a (relatively) lengthy message over BLE.
-// BLEUart messages are limited to the BLE MTU - 3. The bleuart library print/write functions will truncate
-// anything longer. So we need our own function to send longer strings in pieces.
-// For simplicity (right now) this is imposed upon both BLE and Serial.
-void console_send(const char * message)
-{
-  size_t index = 0;
-  size_t last = strlen(message);  
-  while (last - index >= BLEUART_MAX_MSG)
-  {
-    console->write(message + index, BLEUART_MAX_MSG);
-    index += BLEUART_MAX_MSG;
-  }
-  if (index < last)
-  {
-    console->write(message + index, last - index);
-  }
-}
-/*
-void console_send(const char * message)
-{
-  console->write((uint8_t*) message, strlen(message));
-  //console->cBLEUart::write(message, strlen(message));
-} 
-*/
 #define PBLEN 128
 char pbuffer[PBLEN];
-#define CONSOLE_RESP(string) console_send(string)
+#define CONSOLE_RESP(string) console->write((uint8_t *) string, strlen(string)) //console_send(string)
 #define CONSOLE_PRINT(format, args...) snprintf(pbuffer, PBLEN, format, args); \
-                                      console_send(pbuffer)
+                                       console->write((uint8_t *) pbuffer, strlen(pbuffer)) //console_send(pbuffer)
 
 void cmd_batt()
 {
@@ -1077,7 +1055,7 @@ void cmd_res()
   {
     new_offset = RESISTANCE_OFFSET;
     new_factor = RESISTANCE_FACTOR;
-    CONSOLE_RESP("\nDefaults...\n");
+    CONSOLE_RESP("Defaults...\n");
     CONSOLE_PRINT("New offset will be %.1f  .\n", new_offset);
     CONSOLE_PRINT("New factor will be %.4f  .\n", new_factor);
     CONSOLE_RESP("Use activate to have the bike use these values.\n\n");
@@ -1118,7 +1096,8 @@ void cmd_res()
       CONSOLE_PRINT("Done. Average was %d.\n", cal_reading);
       new_offset = cal_reading - CALTOOL_RES/res_factor;
       CONSOLE_PRINT("\nThe new offset is %.1f.\n", new_offset);
-      CONSOLE_RESP("Use activate to have the bike use these values.\n\n");
+      CONSOLE_RESP("\nUse activate to have the bike use these values.");
+      CONSOLE_RESP("If the readings weren't consistent, you can try again.\n\n");
       awaiting_conf = AWAITING_NONE;
   }
   else 
@@ -1131,7 +1110,6 @@ void cmd_res()
       CONSOLE_RESP("Y to continue...");
       awaiting_conf = cmd_number;
       awaiting_timer = CONFIRMATION_TIMEOUT ;
-
   }
 }
 
@@ -1141,7 +1119,7 @@ void cmd_activate()
   {
       res_offset = new_offset;
       res_factor = new_factor;
-      CONSOLE_RESP("\nActivate factor and offset confirmed.\n");
+      CONSOLE_RESP("\nActivate factor and offset confirmed.\n\n");
       CONSOLE_PRINT("Offset %.1f; factor %.4f\n\n", res_offset, res_factor);
       awaiting_conf = AWAITING_NONE;
   }
@@ -1161,11 +1139,11 @@ void cmd_write()
       if (write_param_file("offset", &res_offset, sizeof(res_offset)) &
           write_param_file("factor", &res_factor, sizeof(res_factor)) )
           {
-            CONSOLE_RESP("\nWrite confirmed.\n");
+            CONSOLE_RESP("\nWrite confirmed.\n\n");
           }
           else
           {
-            CONSOLE_RESP("\Failed to write the files.\n");
+            CONSOLE_RESP("\nFailed to write the files.\n\n");
           }
       awaiting_conf = AWAITING_NONE;
   }
@@ -1185,8 +1163,7 @@ void cmd_read()
       read_param_file("factor", &new_factor, sizeof(new_factor)))
     {
       CONSOLE_RESP("Read from the parameter files:");
-      CONSOLE_PRINT("Offset %.1f; factor %.4f\n", new_offset, new_factor);
-      CONSOLE_RESP("Y to write these to the file...");
+      CONSOLE_PRINT("Offset %.1f; factor %.4f\n\n", new_offset, new_factor);
     }
 }
 
@@ -1196,11 +1173,8 @@ void cmd_help()
     for (int i = 0; i < n_cmds; i++)
     {
         CONSOLE_PRINT("%s - %s \n", cmd_table[i].cmd, cmd_table[i].help);
-        // RESPOND(cmd_table[i].cmd);
-        // RESPOND(" - ");
-        // RESPOND(cmd_table[i].help);
-        // RESPOND("\n");
     }
+    CONSOLE_RESP("\n");
 }
 
 void process_cmd()
@@ -1298,7 +1272,8 @@ void update(TimerHandle_t xTimerID)
 
 #if defined(BLEUART) || defined(USE_SERIAL)
   // If there's console input, select the corresponding source and unblock the handler
-  if (console_source_check() || AWAITING_CONF()) xTaskNotifyGive(console_task_handle); 
+  // Note the order of operations: Don't switch sources while awaiting confirmation.
+  if (AWAITING_CONF() || console_source_check()) xTaskNotifyGive(console_task_handle); 
 #endif
 
   // Things that happen on BATT_TICKS ------------------------------------------------------------------------------------

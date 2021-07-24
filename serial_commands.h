@@ -1,5 +1,8 @@
 // The parser - calls the appropriate function; leaves argument parsing to that function
 
+#ifndef SERIAL_COMMANDS_
+#define SERIAL_COMMANDS_
+
 typedef void cmdHandler_t();  // All handlers take nothing and return nothing
 
 struct cmd_table_t {
@@ -55,3 +58,5 @@ void test()
     curr_cmd_set->cmd_table[1].cmdHandler();  // Call a member of the set in use
 }
 */
+
+#endif

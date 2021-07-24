@@ -1,5 +1,8 @@
 // Options of most interest to the end user
 
+#ifndef OPTIONS_
+#define OPTIONS_
+
 /* Filters on the resistance value. 
    Bike resistance measurements can be noisy.
    Filtered value is (FILTER * last + new)/(FILTER + 1)
@@ -73,5 +76,8 @@
    serial interface is not.
 */
 #define USE_SERIAL  // Incorporate USB serial functions including the console and any debugging.
-define BLEUART     // Activates serial over BLE
+#define BLEUART     // Activates serial over BLE
 #define BLEBAS      // Activate BLE battery service
+
+
+#endif

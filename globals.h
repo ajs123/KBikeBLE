@@ -71,7 +71,9 @@ BLEBas blebas; // BAS (Battery Service) helper class instance
 #ifdef BLEUART
 #define BLEUART_MAX_MSG 20
 
-/*
+// Child class of BLEUart to provide BLEUart with write(uint8_t *, size_t) 
+// that behaves the same as the equivalent in Serial. Allows us to define
+// console as a pointer to Stream that works with both BLEUart and Serial.
 class cBLEUart : public BLEUart
 {
   //using BLEUart::BLEUart;
@@ -79,27 +81,27 @@ public:
   size_t write(const uint8_t *content, size_t len);
 };
   
-size_t cBLEUart::write(const uint8_t *content, size_t len) // Needs to match a virtual function in BLEUart
+// Piecewise unbuffered write of longer messages
+// The parent unbuffered BLEUart::write() truncates messages longer than can 
+// fit in one packet, while buffered writes work differently from Serial.
+size_t cBLEUart::write(const uint8_t *content, size_t len) 
 {
-  pinMode(LED_BUILTIN, OUTPUT);
-  digitalWrite(LED_BUILTIN, HIGH);
-  size_t index = 0;
-  size_t last = len;  
+  const uint8_t * index = content;
+  const uint8_t * last = content + len;  
   while (last - index >= BLEUART_MAX_MSG)
   {
-    BLEUart::write(content + index, BLEUART_MAX_MSG);
+    BLEUart::write(index, BLEUART_MAX_MSG); 
     index += BLEUART_MAX_MSG;
   }
   if (index < last)
   {
-    BLEUart::write(content + index, last - index);
+    BLEUart::write(index, last - index);
   }
+  return len;
 }
   
 cBLEUart bleuart; //(int)BLEUART_MAX_MSG); 
-*/
 
-BLEUart bleuart;
 #endif
 
 #endif
