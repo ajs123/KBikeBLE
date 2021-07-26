@@ -3,6 +3,9 @@
 #include <Adafruit_LittleFS_File.h>
 #include <InternalFileSystem.h>
 
+#include "param_store.h"
+#include "options.h"
+
 #define PARAM_FOLDER "/KBikeBLE"
 inline void make_path(char * dest, const char * path, const char * file)
 {
@@ -13,6 +16,12 @@ inline void make_path(char * dest, const char * path, const char * file)
 
 using namespace Adafruit_LittleFS_Namespace;
 File file(InternalFS);
+
+// Construct a full file path from the directory path and filename
+//   dest = the full file path
+//   path = directory path
+//   file = file name
+inline void make_path(char * dest, const char * path, const char * file);
 
 // Start the InternalFS and ensure that the parameter folder is there.
 void setup_InternalFS(void)

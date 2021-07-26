@@ -1004,9 +1004,19 @@ void cmd_batt()
 void cmd_res()
 {
   uint32_t last_resistance = raw_resistance;
-  for (uint8_t i = 100; i > 0; i--)                     // Runs for 100 samples or until interrupted by input
+  uint32_t sum_resistance = 0;
+  uint8_t n_resistance = 0;
+  uint8_t max_n = 100; // Default
+
+  if (arg[0] != 0)
   {
-    if (raw_resistance != last_resistance)
+    max_n = min(0xFF, max(atoi(arg), 1));
+  }
+  for (uint8_t i = max_n; i > 0; i--)                     // Runs for 100 samples or until interrupted by input
+  {
+    sum_resistance += raw_resistance;
+    n_resistance++;
+    if (true) //raw_resistance != last_resistance)
     {
       CONSOLE_PRINT("Raw ADC value %d\n", raw_resistance);
       CONSOLE_PRINT("Resistance %.1f%%\n", resistance);
@@ -1019,6 +1029,11 @@ void cmd_res()
       break;
     }
     delay(TICK_INTERVAL);
+  }
+  if (n_resistance > 0) 
+  {
+    CONSOLE_PRINT("%d measurements.\n", n_resistance);
+    CONSOLE_PRINT("Average ADC value %.1f\n\n", (float)sum_resistance / n_resistance);
   }
 }
 
@@ -1162,8 +1177,9 @@ void cmd_read()
   if (read_param_file("offset", &new_offset, sizeof(new_offset)) &
       read_param_file("factor", &new_factor, sizeof(new_factor)))
     {
-      CONSOLE_RESP("Read from the parameter files:");
+      CONSOLE_RESP("Read from the parameter files:\n");
       CONSOLE_PRINT("Offset %.1f; factor %.4f\n\n", new_offset, new_factor);
+      CONSOLE_RESP("Use activate to have the bike use these values.\n\n");
     }
 }
 

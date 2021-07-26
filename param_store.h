@@ -1,3 +1,5 @@
+// Parameter storage using the LittleFS flash memory filesystem
+
 #ifndef PARAM_STORE_
 #define PARAM_STORE_
 #include <Adafruit_LittleFS.h>
@@ -6,20 +8,8 @@
 
 #define PARAM_FOLDER "/KBikeBLE"
 
-// Construct a full file path from the directory path and filename
-//   dest = the full file path
-//   path = directory path
-//   file = file name
-inline void make_path(char * dest, const char * path, const char * file);
-
-//using namespace Adafruit_LittleFS_Namespace;
-//File file(InternalFS);
-
 // Start the InternalFS and ensure that the parameter folder is there.
 void setup_InternalFS(void);
-
-//byte stored_value[8];
-//char filepath[LFS_NAME_MAX + 1];
 
 // Read a parameter from InternalFS.
 //   name = filename (typically, the name of the variable)

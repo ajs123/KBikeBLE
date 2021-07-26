@@ -18,7 +18,8 @@
 			"iosfwd": "cpp",
 			"new": "cpp",
 			"sstream": "cpp",
-			"streambuf": "cpp"
+			"streambuf": "cpp",
+			"cstdlib": "cpp"
 		},
 		"telemetry.enableCrashReporter": false
 	}

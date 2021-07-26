@@ -16,7 +16,7 @@ extern cmdHandler_t cmd_batt, cmd_res, cmd_showcal, cmd_factor, cmd_offset, cmd_
 
 const cmd_table_t PROGMEM cmd_table[] = {
   {"batt", cmd_batt, "Show battery status."},
-  {"res", cmd_res, "Monitor ADC readings. Any input to stop."},
+  {"res", cmd_res, "optional <int> Monitor ADC readings - indicated number, or any input to stop."},
   {"showcal", cmd_showcal, "Show the calibration currently in use."},
   {"factor", cmd_factor, "<float> Enter a new cal factor (should not be necessary)."},
   {"offset", cmd_offset, "<float> Enter a new calibration offset (follow with activate)."},
