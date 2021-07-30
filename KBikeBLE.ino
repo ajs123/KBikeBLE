@@ -21,6 +21,7 @@
 #include "calibration.h"
 #include "serial_commands.h"
 #include "param_store.h"
+//#include "KB_analog.h"
 
 /**********************************************************************
  * Optional functions and debugging
@@ -107,9 +108,9 @@ void right_just(uint16_t number, int x, int y, int width)
 // This works for the current font, but it ought to count pixels rather than characters.
 {
   if (number < 10)
-    x = x + width;
+    x += width;
   if (number < 100)
-    x = x + width;
+    x += width;
   display.setCursor(x, y);
   display.print(number);
 }
@@ -124,8 +125,6 @@ void draw_batt(uint8_t pct)
 {
   display.drawFrame(BATT_POS_X, BATT_POS_Y, BWIDTH, BHEIGHT);                                  // Battery body
   display.drawBox(BATT_POS_X + BWIDTH, BATT_POS_Y + ((BHEIGHT - BUTTON) / 2), BUTTON, BUTTON); // Battery "button"
-  //display.setDrawColor(0);
-  //display.drawBox(BATT_POS_X + 2, BATT_POS_Y + 2, BWIDTH - 4, BHEIGHT - 4);
   display.setDrawColor(1);
   display.drawBox(BATT_POS_X + 2, BATT_POS_Y + 2, roundpct(pct, (BWIDTH - 4)), (BHEIGHT - 4)); // Filled area proportional to charge estimate
 }
@@ -189,11 +188,35 @@ void display_numbers()
 /*********************************************************************************
   Analog input processing - resistance magnet position and battery
 * ********************************************************************************/
+//#define analogReference KB_analog::analogReference
+//#define analogOversampling KB_analog::analogOversampling
+//#define analogSampleTime KB_analog::analogSampleTime
+//#define analogReadResolution KB_analog::analogReadResolution
+//#define analogRead KB_analog::analogRead
+
+eAnalogReference analog_reference = AR_INTERNAL;
+
+void ADC_calibrate_offset() // Periodic calibration of the ADC
+{
+  digitalWrite(PIN_LED1, HIGH);
+  NRF_SAADC->EVENTS_CALIBRATEDONE = 0;
+  NRF_SAADC->TASKS_CALIBRATEOFFSET = SAADC_TASKS_CALIBRATEOFFSET_TASKS_CALIBRATEOFFSET_Trigger;
+  delay(1);
+  //while (!NRF_SAADC->EVENTS_CALIBRATEDONE) delay(1); // This should work
+  if (!NRF_SAADC->EVENTS_CALIBRATEDONE) delay(1000);
+  NRF_SAADC->EVENTS_CALIBRATEDONE = 0;
+  digitalWrite(PIN_LED1, LOW);
+}
 
 void ADC_setup() // Set up the ADC for ongoing resistance measurement
 {
-  analogReference(AR_INTERNAL); // 3.6V
+  analogReference(analog_reference); // 3.6V
+  ADC_calibrate_offset();
+  //analogReference(AR_VDD4); // VDD = nominal 3.3V - Resistance readings will be proportional to high side voltage
   analogOversampling(ANALOG_OVERSAMPLE);
+  #ifdef SAADC_TACQ
+    analogSampleTime(20);
+  #endif
   analogReadResolution(10); // 10 bits for better gear delineation and for battery measurement
   delay(1);                 // Let the ADC settle before any measurements. Only important if changing the reference or possibly resolution
 }
@@ -669,11 +692,12 @@ void suspend()
 #else
 /* 
   Enter the power save state by stopping the update() task. 
+  If full = true, also de-energize the resistance sense pot
   Resume by re-starting it just as in Setup().
 */
-void suspend()
+void suspend(bool full = true)
 {
-  digitalWrite(RESISTANCE_TOP, LOW); // De-energize the resistance pot
+  if (full) digitalWrite(RESISTANCE_TOP, LOW); // De-energize the resistance pot
   update_timer.stop();
   suspended = true;
 }
@@ -681,6 +705,7 @@ void suspend()
 void resume()
 {
   digitalWrite(RESISTANCE_TOP, HIGH);
+  ADC_calibrate_offset();
   update_timer.start();
   suspended = false;
 }
@@ -731,10 +756,13 @@ void lever_check() // Moving the gear lever to the top switches the resistance/g
 void update_resistance()
 {
   raw_resistance = analogRead(RESISTANCE_PIN); // ADC set to oversample
+  //raw_pot_top = analogRead(RESISTANCE_TOP);
+  //raw_pot_wiper = analogRead(RESISTANCE_PIN);
+  //raw_resistance = raw_pot_wiper * ( ( (3300 * 1024) + 1800) / 3600 )  / raw_pot_top;  // (3.3 V Vdd)/(3.6 V Vref)*(ADC counts), rounded
   inst_resistance = max((raw_resistance - res_offset) * res_factor, 0);
-  resistance = (RESISTANCE_FILTER * resistance + inst_resistance) / (RESISTANCE_FILTER + 1);
+  resistance = (RESISTANCE_FILTER * resistance + 2 * inst_resistance) / (RESISTANCE_FILTER + 2);
   gear = gear_lookup(resistance);
-  disp_resistance = (RESISTANCE_DISPLAY_FILTER * resistance + inst_resistance) / (RESISTANCE_DISPLAY_FILTER + 1);
+  disp_resistance = (RESISTANCE_DISPLAY_FILTER * resistance + 2 * inst_resistance) / (RESISTANCE_DISPLAY_FILTER + 2);
   //resistance_sq = resistance * resistance;
   //gear = max(floor(GC + GB * resistance + GA * resistance_sq), 1) ;
   lever_check();
@@ -742,7 +770,18 @@ void update_resistance()
 
 void update_battery()
 {
+  
+  if (analog_reference != AR_INTERNAL)
+  {
+    analogReference(AR_INTERNAL);
+    delay(1);
+  }
   batt_mvolts = analogRead(BATTERY_PIN) * VBAT_MV_PER_LSB;
+  if (analog_reference != AR_INTERNAL)
+  {
+    analogReference(analog_reference);
+    delay(1);
+  }
 
   if (batt_mvolts < 3300)                                         // LiPo model...
     batt_pct = 0.0;                                               //   Dead at 3.3V
@@ -853,11 +892,11 @@ void updateBLE()
 }
 
 #if defined(BLEUART) || defined(USE_SERIAL)
-#define SBUF_LEN 20
-char sbuffer[SBUF_LEN];  // Serial console input buffer
-char cmd[SBUF_LEN];     // Tokenized command
-char arg[SBUF_LEN];     // Tokenized argument
-uint8_t sbix;             // Current index into input buffer
+#define SBUF_LEN 40  
+char sbuffer[SBUF_LEN];                 // Serial console input buffer
+char cmd[SBUF_LEN];                     // Tokenized command
+char arg[SBUF_LEN];                     // Tokenized argument
+uint8_t sbix;           // Current index into input buffer
 bool cmd_rcvd;          // Console state: command received
 bool new_input;         // Console state: new input ready to process
 uint8_t cmd_number;             // Current command (= position in the table)
@@ -1008,6 +1047,10 @@ void cmd_res()
   uint8_t n_resistance = 0;
   uint8_t max_n = 100; // Default
 
+  double mean = 0;
+  double M2 = 0;
+  double variance = 0;
+
   if (arg[0] != 0)
   {
     max_n = min(0xFF, max(atoi(arg), 1));
@@ -1022,6 +1065,11 @@ void cmd_res()
       CONSOLE_PRINT("Resistance %.1f%%\n", resistance);
       CONSOLE_PRINT("Keiser gear number %d\n\n", gear);
       last_resistance = raw_resistance;
+
+      double delta = raw_resistance - mean;
+      mean += delta / n_resistance;
+      M2 += delta * (raw_resistance - mean);
+      variance = M2 / n_resistance;
     }
     if (console->available())
     {
@@ -1033,8 +1081,35 @@ void cmd_res()
   if (n_resistance > 0) 
   {
     CONSOLE_PRINT("%d measurements.\n", n_resistance);
-    CONSOLE_PRINT("Average ADC value %.1f\n\n", (float)sum_resistance / n_resistance);
+    CONSOLE_PRINT("Average ADC value %.1f\n", (float)sum_resistance / n_resistance);
+    CONSOLE_PRINT("Estimated mean %.1f; SD %.1f . \n\n", mean, sqrt(variance));
   }
+}
+
+void cmd_adcref()
+{
+  if (analog_reference == AR_INTERNAL)
+  {
+    analog_reference = AR_VDD4;
+    res_offset *= (3.6 / 3.3);
+    res_factor /= (3.6 / 3.3);
+    CONSOLE_RESP("ADC reference is now Vdd.\n\n");
+  }
+  else
+  {
+    analog_reference = AR_INTERNAL;
+    res_offset *= (3.3 / 3.6);
+    res_factor /= (3.3 / 3.6);
+    CONSOLE_RESP("ADC reference is now internal 3.6V.\n\n");
+  }
+  analogReference(analog_reference);
+}
+
+void cmd_adccal()
+{
+  CONSOLE_RESP("Doing ADC calibration...");
+  ADC_calibrate_offset();
+  CONSOLE_RESP("Done.\n\n");
 }
 
   void cmd_showcal()
@@ -1088,6 +1163,7 @@ void cmd_res()
       delay(time);
     }
   }
+
   void cmd_cal()
   {
     if (AWAITING_CONF())
@@ -1099,6 +1175,8 @@ void cmd_res()
       CONSOLE_RESP(" Do not use the lever!\n");
       delay_message(5, 1000);
       CONSOLE_RESP("\n\nHold while readings are taken...\n");
+
+      suspend(false);  // Suspend updates so that resistance updates don't interfere, but leave the sense pot energized
       uint32_t cal_reading = 0;
       for (uint8_t i = 10; i > 0; i--)
       {
@@ -1107,6 +1185,8 @@ void cmd_res()
         cal_reading += reading;
         delay(200);
       }
+      resume();       // Resume updates
+
       cal_reading /= 10;
       CONSOLE_PRINT("Done. Average was %d.\n", cal_reading);
       new_offset = cal_reading - CALTOOL_RES/res_factor;
@@ -1181,6 +1261,11 @@ void cmd_read()
       CONSOLE_PRINT("Offset %.1f; factor %.4f\n\n", new_offset, new_factor);
       CONSOLE_RESP("Use activate to have the bike use these values.\n\n");
     }
+}
+
+void cmd_comment()
+{
+  CONSOLE_PRINT("%s\n\n", arg);
 }
 
 void cmd_help()

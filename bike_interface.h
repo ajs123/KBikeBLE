@@ -12,5 +12,5 @@
 //#define CRANK_PIN  7  // Pushbutton on the Adafruit nrf52840 Express, for debugging
 #define CRANK_PIN 9
 #define RESISTANCE_PIN A1
-#define RESISTANCE_TOP 10
+#define RESISTANCE_TOP 10  // Should move this to A2 so that the voltage at the top can be measured
 #define BATTERY_PIN A6

@@ -3,12 +3,15 @@
   - More comprehensive writeup of calibration
   - Tutorial how-to-build for less experienced folks
   - Writeup on power consumption
-- Consider using a different reference, e.g., Vdd ref for the pot to maintain cal near battery end of charge
+  - Better writeup on calibration
+- Calibration
+  - Consider using a different reference, e.g., Vdd ref for the pot to maintain cal near battery end of charge
+  - Check for temperature dependence or other sources of variation - is SAADC offset calibration needed?
 - Keeping more parameters or options in the filesystem
   - Gear vs. Res% display
 - BLE Services
   - If continuing to support FTMS, implement a real model-based calc for speed (mph/kph) as a function of power and cadence. 
-- Improve the display: larger size or double area
+- Improve the display: larger size with more data
   - Things maybe to add
     - Accumulated  data
       - Miles - requires a model

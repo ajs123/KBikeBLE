@@ -19,7 +19,10 @@
 			"new": "cpp",
 			"sstream": "cpp",
 			"streambuf": "cpp",
-			"cstdlib": "cpp"
+			"cstdlib": "cpp",
+			"nrf.h": "c",
+			"wiring_private.h": "c",
+			"nrfx.h": "c"
 		},
 		"telemetry.enableCrashReporter": false
 	}
