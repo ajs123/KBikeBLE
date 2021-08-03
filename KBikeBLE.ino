@@ -21,7 +21,6 @@
 #include "calibration.h"
 #include "serial_commands.h"
 #include "param_store.h"
-//#include "KB_analog.h"
 
 /**********************************************************************
  * Optional functions and debugging
@@ -35,9 +34,9 @@
                                  
 #ifdef QUICKTIMEOUT
 #define DIM_TIME 20       //60         // Duration (sec) of no pedaling to dim display (if supported)
-#define BLANK_TIME 30     //180      // Duration (sec) to blank display
-#define BLE_PS_TIME 30   //900    // Duration (sec) to turn off Bluetooth to save power. Will disconnect from Central after this time.
-#define POWERDOWN_TIME 40 //1200 // Duration (sec) to suspend the main loop pending a crank interrupt
+#define BLANK_TIME 25     //180      // Duration (sec) to blank display
+#define NO_BLE_PS_TIME 30   //900    // Duration (sec) to turn off Bluetooth to save power. Will disconnect from Central after this time.
+#define BLE_PS_TIME 30 //1200 // Duration (sec) to suspend the main loop pending a crank interrupt
 #endif
 
 #if defined(USE_SERIAL) && defined(DEBUGGING)
@@ -86,7 +85,6 @@ bool gear_display = GEAR_DISPLAY;
 #define DISPLAY_NUMBER_FONT u8g2_font_helvB24_tn
 // Log used at startup
 #define LOG_FONT u8g2_font_7x14_tf
-#define LOG_FONT_BIG u8g2_font_7x14_tf
 #define LOG_WIDTH 9 
 #define LOG_HEIGHT 10 
 uint8_t u8log_buffer[LOG_WIDTH * LOG_HEIGHT];
@@ -94,14 +92,21 @@ U8G2LOG displog;
 
 void display_setup()
 {
+  // Start the display
   display.begin();
   display.setContrast(CONTRAST_FULL);
   //display.enableUTF8Print();  // Can leave this out if using no symbols
   display.setFontMode(1); // "Transparent": Character background not drawn (since we clear the display anyway)
   
+  // Start the startup log display
   displog.begin(display, LOG_WIDTH, LOG_HEIGHT, u8log_buffer);
   displog.setLineHeightOffset(0);
   displog.setRedrawMode(0);
+
+  display.setFont(LOG_FONT);
+  displog.print(F("KBikeBLE\n"));
+  displog.println(F(VERSION));
+  displog.println();
 }
 
 void right_just(uint16_t number, int x, int y, int width)
@@ -188,37 +193,115 @@ void display_numbers()
 /*********************************************************************************
   Analog input processing - resistance magnet position and battery
 * ********************************************************************************/
-//#define analogReference KB_analog::analogReference
-//#define analogOversampling KB_analog::analogOversampling
-//#define analogSampleTime KB_analog::analogSampleTime
-//#define analogReadResolution KB_analog::analogReadResolution
-//#define analogRead KB_analog::analogRead
 
 eAnalogReference analog_reference = AR_INTERNAL;
 
-void ADC_calibrate_offset() // Periodic calibration of the ADC
+bool analogCalibrateOffset() // Periodic calibration of the ADC
 {
-  digitalWrite(PIN_LED1, HIGH);
-  NRF_SAADC->EVENTS_CALIBRATEDONE = 0;
-  NRF_SAADC->TASKS_CALIBRATEOFFSET = SAADC_TASKS_CALIBRATEOFFSET_TASKS_CALIBRATEOFFSET_Trigger;
-  delay(1);
-  //while (!NRF_SAADC->EVENTS_CALIBRATEDONE) delay(1); // This should work
-  if (!NRF_SAADC->EVENTS_CALIBRATEDONE) delay(1000);
-  NRF_SAADC->EVENTS_CALIBRATEDONE = 0;
-  digitalWrite(PIN_LED1, LOW);
+  const uint32_t calibrate_done = ( (SAADC_EVENTS_CALIBRATEDONE_EVENTS_CALIBRATEDONE_Generated << 
+                                      SAADC_EVENTS_CALIBRATEDONE_EVENTS_CALIBRATEDONE_Pos )
+                                    && SAADC_EVENTS_CH_LIMITH_LIMITH_Msk );
+  
+  const uint32_t calibrate_not_done = ( (SAADC_EVENTS_CALIBRATEDONE_EVENTS_CALIBRATEDONE_NotGenerated << 
+                                          SAADC_EVENTS_CALIBRATEDONE_EVENTS_CALIBRATEDONE_Pos )
+                                        && SAADC_EVENTS_CH_LIMITH_LIMITH_Msk );
+  
+  const uint32_t saadc_enable = ( (SAADC_ENABLE_ENABLE_Enabled << SAADC_ENABLE_ENABLE_Pos)
+                                  && SAADC_ENABLE_ENABLE_Msk );
+
+  const uint32_t saadc_disable = ( (SAADC_ENABLE_ENABLE_Disabled << SAADC_ENABLE_ENABLE_Pos)
+                                   && SAADC_ENABLE_ENABLE_Msk );
+
+  const uint32_t calibrate_trigger = ( (SAADC_TASKS_CALIBRATEOFFSET_TASKS_CALIBRATEOFFSET_Trigger <<
+                                         SAADC_TASKS_CALIBRATEOFFSET_TASKS_CALIBRATEOFFSET_Pos) 
+                                       && SAADC_TASKS_CALIBRATEOFFSET_TASKS_CALIBRATEOFFSET_Msk );
+
+  // Enable the SAADC
+  NRF_SAADC->ENABLE = saadc_enable;
+
+  // Be sure the done flag is cleared, then trigger offset calibration
+  NRF_SAADC->EVENTS_CALIBRATEDONE = calibrate_not_done;
+  NRF_SAADC->TASKS_CALIBRATEOFFSET = calibrate_trigger;
+
+  // Wait for completion
+  bool done = false;
+  for (int i = 0; (i < 20) && !(done = (NRF_SAADC->EVENTS_CALIBRATEDONE == calibrate_done)); i++ ) delay(1);
+
+  // Clear the done flag  (really shouldn't have to do this both times)
+  NRF_SAADC->EVENTS_CALIBRATEDONE = calibrate_not_done;
+
+  // Disable the SAADC
+  NRF_SAADC->ENABLE = saadc_disable;
+
+  return done;
+}
+
+float get_SOC_temp()
+{
+  const uint32_t temp_ready = ( (TEMP_EVENTS_DATARDY_EVENTS_DATARDY_Generated << TEMP_EVENTS_DATARDY_EVENTS_DATARDY_Pos)
+                                && TEMP_EVENTS_DATARDY_EVENTS_DATARDY_Msk );
+
+  const uint32_t temp_not_ready = ( (TEMP_EVENTS_DATARDY_EVENTS_DATARDY_NotGenerated << TEMP_EVENTS_DATARDY_EVENTS_DATARDY_Pos)
+                                    && TEMP_EVENTS_DATARDY_EVENTS_DATARDY_Msk );
+
+  const uint32_t temp_trigger = ( (TEMP_TASKS_START_TASKS_START_Trigger << TEMP_TASKS_STOP_TASKS_STOP_Pos)
+                                  && TEMP_TASKS_START_TASKS_START_Msk );
+
+  const uint32_t temp_stop = ( (TEMP_TASKS_STOP_TASKS_STOP_Trigger << TEMP_TASKS_STOP_TASKS_STOP_Pos)
+                                  && TEMP_TASKS_STOP_TASKS_STOP_Msk );
+
+  uint8_t en;
+  int32_t temp;
+  if (sd_softdevice_is_enabled(&en)) 
+  {
+    sd_temp_get(&temp);
+    return temp / 4.0;
+  }
+  else
+  {
+    NRF_TEMP->EVENTS_DATARDY = temp_not_ready; // Should not be needed
+    NRF_TEMP->TASKS_START = temp_trigger; 
+  
+    bool done = false;
+    for (int i = 0; (i < 20) && !(done = (NRF_TEMP->EVENTS_DATARDY == temp_ready)); i++) delay(1);
+
+    NRF_TEMP->TASKS_STOP = temp_stop;          // Needed?
+    NRF_TEMP->EVENTS_DATARDY = temp_not_ready;
+
+    if (done) return (NRF_TEMP->TEMP / 4.0F);
+    else return -40.0F;
+  }
+}
+
+float averageADC()
+{
+  uint32_t raw_sum = 0;
+  const uint8_t n_samp = 20;
+  const uint8_t interval = 50;
+  for (uint8_t i = 0; i < n_samp; i++)
+  {
+    raw_sum += analogRead(RESISTANCE_PIN);
+    delay(interval);
+  }
+  return ((float) raw_sum) / n_samp;
 }
 
 void ADC_setup() // Set up the ADC for ongoing resistance measurement
 {
-  analogReference(analog_reference); // 3.6V
-  ADC_calibrate_offset();
-  //analogReference(AR_VDD4); // VDD = nominal 3.3V - Resistance readings will be proportional to high side voltage
+  analogReference(analog_reference); 
   analogOversampling(ANALOG_OVERSAMPLE);
   #ifdef SAADC_TACQ
     analogSampleTime(20);
   #endif
   analogReadResolution(10); // 10 bits for better gear delineation and for battery measurement
   delay(1);                 // Let the ADC settle before any measurements. Only important if changing the reference or possibly resolution
+
+  displog.printf("\nT %.1f\n", get_SOC_temp());
+  displog.printf("ADC %.1f\n", averageADC());
+  if (analogCalibrateOffset()) displog.println("Cal done.");
+  else displog.println("Cal undone.");
+  displog.printf("ADC %.1f\n", averageADC());
+  delay(5000);
 }
 
 /*****************************************************************************************************
@@ -492,44 +575,33 @@ void crank_callback()
  ********************************************************************************/
 void init_cal()
 {
-  display.setFont(LOG_FONT_BIG);
-  displog.print(F("KBikeBLE\n"));
-  displog.println(F(VERSION));
-  displog.println();
-  display.setFont(LOG_FONT);
-
   if (!read_param_file("offset", &res_offset, sizeof(res_offset)))
   {
     res_offset = RESISTANCE_OFFSET;
     write_param_file("offset", &res_offset, sizeof(res_offset));
-    displog.println(F("OFFSET"));
-    displog.println(F("DEFAULT"));
-    displog.println(F("WRITE:"));
-    displog.println(res_offset);
+    displog.println(F("OFFSET\nDEFAULT\n\ WRITE"));
+    displog.printf(" %.1f\n", res_offset);
   }
   else
   {
-    displog.println(F("OFFSET")); 
-    displog.println(F(" READ:"));
-    displog.println(res_offset);
+    displog.println(F("OFFSET\n READ")); 
+    displog.printf(" %.1f\n", res_offset);
   }
+
   if (!read_param_file("factor", &res_factor, sizeof(res_factor)))
   {
     res_factor = RESISTANCE_FACTOR;
     write_param_file("factor", &res_factor, sizeof(res_factor));
-    displog.println(F("\nFACTOR"));
-    displog.println(F("DEFAULT"));
-    displog.println(F("WRITE:"));
-    displog.printf("%.1f\n", res_factor);
+    displog.println(F("\nFACTOR\nDEFAULT\n WRITE"));
+    displog.printf(" %.4f\n", res_factor);
   }
   else
   {
-    displog.println(F("\nFACTOR"));
-    displog.println(F(" READ:"));
-    displog.printf("%.4f\n", res_factor);
+    displog.println(F("\nFACTOR\n READ"));
+    displog.printf(" %.4f\n", res_factor);
   }
 
-  delay(5000);
+  delay(2000);
 }
 
 /********************************************************************************
@@ -692,12 +764,12 @@ void suspend()
 #else
 /* 
   Enter the power save state by stopping the update() task. 
-  If full = true, also de-energize the resistance sense pot
+  If full = true, also de-energize the resistance sense pot. full = false is used 
   Resume by re-starting it just as in Setup().
 */
-void suspend(bool full = true)
+void suspend()
 {
-  if (full) digitalWrite(RESISTANCE_TOP, LOW); // De-energize the resistance pot
+  digitalWrite(RESISTANCE_TOP, LOW); // De-energize the resistance pot
   update_timer.stop();
   suspended = true;
 }
@@ -705,7 +777,7 @@ void suspend(bool full = true)
 void resume()
 {
   digitalWrite(RESISTANCE_TOP, HIGH);
-  ADC_calibrate_offset();
+  analogCalibrateOffset();
   update_timer.start();
   suspended = false;
 }
@@ -1108,7 +1180,7 @@ void cmd_adcref()
 void cmd_adccal()
 {
   CONSOLE_RESP("Doing ADC calibration...");
-  ADC_calibrate_offset();
+  analogCalibrateOffset();
   CONSOLE_RESP("Done.\n\n");
 }
 
@@ -1176,7 +1248,7 @@ void cmd_adccal()
       delay_message(5, 1000);
       CONSOLE_RESP("\n\nHold while readings are taken...\n");
 
-      suspend(false);  // Suspend updates so that resistance updates don't interfere, but leave the sense pot energized
+      update_timer.stop();  // Suspend updates so that resistance updates don't interfere
       uint32_t cal_reading = 0;
       for (uint8_t i = 10; i > 0; i--)
       {
@@ -1185,7 +1257,8 @@ void cmd_adccal()
         cal_reading += reading;
         delay(200);
       }
-      resume();       // Resume updates
+      update_timer.start();  // Resume updates. Note: Since update() enables the console to run, we wouldn't
+                             // be here if the timer were stopped.
 
       cal_reading /= 10;
       CONSOLE_PRINT("Done. Average was %d.\n", cal_reading);

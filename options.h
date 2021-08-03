@@ -87,12 +87,13 @@
    Set the transmit power to something that works reliably without wasting power.
    The blue LED blink rate can be changed as well but is probably not significant.
 */
-
 #define BLE_TX_POWER -12 // BLE transmit power in dBm
 // Valid options for nRF52840: -40, -20, -16, -12, -8, -4, 0, +2, +3, +4, +5, +6, +7, or +8
 #define BLE_LED_INTERVAL 1000 // ms
 
-#define CONFIRMATION_TIMEOUT 15; // In the console, approx seconds to timeout of commands requiring confirmation
+/* Console (command line interface) options. ----------------------------------------------------------
+*/
+#define CONFIRMATION_TIMEOUT 15; // Approx seconds to timeout of commands requiring confirmation
 
 /* Optional features and functions.
    The console interface allows the user to, among other things, calibrate the computer to the individual
@@ -102,7 +103,7 @@
 #define USE_SERIAL  // Incorporate USB serial functions including the console and any debugging.
 #define BLEUART     // Activates serial over BLE
 #define BLEBAS      // Activate BLE battery service
-//#define SAADC_TACQ  // Use the extension to the Adafruit nRF52 core to set ADC acquisition time 
+#define SAADC_TACQ  // Use the extension to the Adafruit nRF52 core to set ADC acquisition time 
                     //   - improves resistance measuresments but not yet part of the distribution
 
 

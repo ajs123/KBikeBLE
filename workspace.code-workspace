@@ -22,7 +22,8 @@
 			"cstdlib": "cpp",
 			"nrf.h": "c",
 			"wiring_private.h": "c",
-			"nrfx.h": "c"
+			"nrfx.h": "c",
+			"wiring_constants.h": "c"
 		},
 		"telemetry.enableCrashReporter": false
 	}

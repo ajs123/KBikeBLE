@@ -55,8 +55,12 @@
 - V0.17
   - Calibration is now saved to nonvolatile memory (via LittleFS). If cal files aren't present, they're created from the defaults in calibration.h and written out to nonvolatile memory. Further changes are via the console.
   - Little U8G2 log screen at startup to show parameters read from or written to nonvolatile memory
-  - The command line interface now allows calibration values to be re-read from, or written to, nonvolatile memory. 
-  - The command line interface now works via BLEUart or serial 
-- Moved globals to globals.h - start of some code cleanup
-  - Moved BLE service definitions and flags to BLE_services.h
-  - Cleaner struct definition for BLE data
+  - Bike resistance measurement
+    - Set the ADC sample time (TACQ) as recommended by Nordic for higher resistance sources (such as the 20K resistance sense pot). This reduces noise in resistance measurements. This required an addition to the Adafruit analog input core which is included on Adafruit v0.25 and the current Github master. If not available, comment out the #define for SAADC_TACQ.
+    - Calibration of the ADC offset - This is recommended by Nordic if the temperature could vary by more than 10 C. It's done at reset and at wakeup from low power mode.
+  - Improvements and additions to the command line interface
+    - Now allows calibration values to be re-read from, or written to, nonvolatile memory. 
+    - Now works via BLEUart or serial. It will respond to whichever is the source of input.
+  - Moved globals to globals.h - start of some code cleanup
+    - Moved BLE service definitions and flags to BLE_services.h
+    - Cleaner struct definition for BLE data
