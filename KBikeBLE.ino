@@ -295,7 +295,7 @@ void ADC_setup() // Set up the ADC for ongoing resistance measurement
   analogReference(analog_reference); 
   analogOversampling(ANALOG_OVERSAMPLE);
   #ifdef SAADC_TACQ
-    analogSampleTime(20);
+    analogSampleTime(ANALOG_SAMPLE_TIME);
   #endif
   analogReadResolution(10); // 10 bits for better gear delineation and for battery measurement
   delay(1);                 // Let the ADC settle before any measurements. Only important if changing the reference or possibly resolution

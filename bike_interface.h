@@ -12,5 +12,8 @@
 //#define CRANK_PIN  7  // Pushbutton on the Adafruit nrf52840 Express, for debugging
 #define CRANK_PIN 9
 #define RESISTANCE_PIN A1
-#define RESISTANCE_TOP 10  // Should move this to A2 so that the voltage at the top can be measured
+#define RESISTANCE_TOP 10  
 #define BATTERY_PIN A6
+
+#define ANALOG_SAMPLE_TIME 20 // The SAADC sampling time in us. 10 us is probably enough for reading
+                              // from the 20K resistance sense potentiometer
