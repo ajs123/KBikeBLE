@@ -105,6 +105,9 @@
 #define BLEBAS      // Activate BLE battery service
 #define SAADC_TACQ  // Use the extension to the Adafruit nRF52 core to set ADC acquisition time 
                     //   - improves resistance measuresments but not yet part of the distribution
+#define SAADC_CALIBRATE_OFFSET // Use the extension to the Adafruit nRF52 core to support calibration
+                               // of the SAADC offset
+#define READ_CPU_TEMP  // Adafruit nRF52 core includes readCPUTemperature()
 
 
 #endif

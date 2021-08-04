@@ -35,8 +35,8 @@
 #ifdef QUICKTIMEOUT
 #define DIM_TIME 20       //60         // Duration (sec) of no pedaling to dim display (if supported)
 #define BLANK_TIME 25     //180      // Duration (sec) to blank display
-#define NO_BLE_PS_TIME 30   //900    // Duration (sec) to turn off Bluetooth to save power. Will disconnect from Central after this time.
-#define BLE_PS_TIME 30 //1200 // Duration (sec) to suspend the main loop pending a crank interrupt
+#define NO_BLE_PS_TIME 30   //900    // Duration (sec) to powersave when no BLE connection
+#define BLE_PS_TIME 30 //1200 // Duration (sec) to powersave with BLE connection
 #endif
 
 #if defined(USE_SERIAL) && defined(DEBUGGING)
@@ -86,7 +86,7 @@ bool gear_display = GEAR_DISPLAY;
 // Log used at startup
 #define LOG_FONT u8g2_font_7x14_tf
 #define LOG_WIDTH 9 
-#define LOG_HEIGHT 10 
+#define LOG_HEIGHT 10
 uint8_t u8log_buffer[LOG_WIDTH * LOG_HEIGHT];
 U8G2LOG displog;
 
@@ -196,7 +196,8 @@ void display_numbers()
 
 eAnalogReference analog_reference = AR_INTERNAL;
 
-bool analogCalibrateOffset() // Periodic calibration of the ADC
+#ifndef SAADC_CALIBRATE_OFFSET
+analogCalibrateOffset() // Periodic calibration of the ADC
 {
   const uint32_t calibrate_done = ( (SAADC_EVENTS_CALIBRATEDONE_EVENTS_CALIBRATEDONE_Generated << 
                                       SAADC_EVENTS_CALIBRATEDONE_EVENTS_CALIBRATEDONE_Pos )
@@ -224,20 +225,22 @@ bool analogCalibrateOffset() // Periodic calibration of the ADC
   NRF_SAADC->TASKS_CALIBRATEOFFSET = calibrate_trigger;
 
   // Wait for completion
-  bool done = false;
-  for (int i = 0; (i < 20) && !(done = (NRF_SAADC->EVENTS_CALIBRATEDONE == calibrate_done)); i++ ) delay(1);
+  while (NRF_SAADC->EVENTS_CALIBRATEDONE != calibrate_done);
 
   // Clear the done flag  (really shouldn't have to do this both times)
   NRF_SAADC->EVENTS_CALIBRATEDONE = calibrate_not_done;
 
   // Disable the SAADC
   NRF_SAADC->ENABLE = saadc_disable;
-
-  return done;
 }
+#endif
 
-float get_SOC_temp()
+#ifndef READ_CPU_TEMP
+float readCPUTemperature()
 {
+  // These are defined simply to make the ensuing code easier to read.
+  // Ready and triggers are 0x01, and not ready is 0x00. Other analog code depends upon ready
+  // Since these are unlikely to ever change, use of the defines is just a formalilty.
   const uint32_t temp_ready = ( (TEMP_EVENTS_DATARDY_EVENTS_DATARDY_Generated << TEMP_EVENTS_DATARDY_EVENTS_DATARDY_Pos)
                                 && TEMP_EVENTS_DATARDY_EVENTS_DATARDY_Msk );
 
@@ -252,26 +255,27 @@ float get_SOC_temp()
 
   uint8_t en;
   int32_t temp;
-  if (sd_softdevice_is_enabled(&en)) 
+  (void) sd_softdevice_is_enabled(&en);
+  if (en) 
   {
     sd_temp_get(&temp);
     return temp / 4.0;
   }
   else
   {
-    NRF_TEMP->EVENTS_DATARDY = temp_not_ready; // Should not be needed
+    NRF_TEMP->EVENTS_DATARDY = temp_not_ready; // Only needed in case another function is also looking at this event flag
     NRF_TEMP->TASKS_START = temp_trigger; 
   
-    bool done = false;
-    for (int i = 0; (i < 20) && !(done = (NRF_TEMP->EVENTS_DATARDY == temp_ready)); i++) delay(1);
+    while (NRF_TEMP->EVENTS_DATARDY != temp_ready);
+    temp = NRF_TEMP->TEMP;                      // Per anomaly 29 (unclear whether still there), TASKS_STOP will clear the TEMP register.
 
-    NRF_TEMP->TASKS_STOP = temp_stop;          // Needed?
+    NRF_TEMP->TASKS_STOP = temp_stop;           // Per anomaly 30 (unclear whether still there), the temp peripheral needs to be shut down
     NRF_TEMP->EVENTS_DATARDY = temp_not_ready;
 
-    if (done) return (NRF_TEMP->TEMP / 4.0F);
-    else return -40.0F;
+    return temp / 4.0F;
   }
-}
+} 
+#endif
 
 float averageADC()
 {
@@ -296,10 +300,11 @@ void ADC_setup() // Set up the ADC for ongoing resistance measurement
   analogReadResolution(10); // 10 bits for better gear delineation and for battery measurement
   delay(1);                 // Let the ADC settle before any measurements. Only important if changing the reference or possibly resolution
 
-  displog.printf("\nT %.1f\n", get_SOC_temp());
-  displog.printf("ADC %.1f\n", averageADC());
-  if (analogCalibrateOffset()) displog.println("Cal done.");
-  else displog.println("Cal undone.");
+  displog.printf("\nADC %.1f\n", averageADC());
+  displog.printf("T %.2f\n", readCPUTemperature());
+  analogCalibrateOffset();
+  //if (analogCalibrateOffset()) displog.println("Cal done.");
+  //else displog.println("Cal undone.");
   displog.printf("ADC %.1f\n", averageADC());
   delay(5000);
 }
@@ -579,12 +584,12 @@ void init_cal()
   {
     res_offset = RESISTANCE_OFFSET;
     write_param_file("offset", &res_offset, sizeof(res_offset));
-    displog.println(F("OFFSET\nDEFAULT\n\ WRITE"));
+    displog.println(F("Offset\ndefault\n\ write"));
     displog.printf(" %.1f\n", res_offset);
   }
   else
   {
-    displog.println(F("OFFSET\n READ")); 
+    displog.println(F("Offset\n read")); 
     displog.printf(" %.1f\n", res_offset);
   }
 
@@ -592,12 +597,12 @@ void init_cal()
   {
     res_factor = RESISTANCE_FACTOR;
     write_param_file("factor", &res_factor, sizeof(res_factor));
-    displog.println(F("\nFACTOR\nDEFAULT\n WRITE"));
+    displog.println(F("\nFactor\ndefault\n write"));
     displog.printf(" %.4f\n", res_factor);
   }
   else
   {
-    displog.println(F("\nFACTOR\n READ"));
+    displog.println(F("\nFactor\n read"));
     displog.printf(" %.4f\n", res_factor);
   }
 
