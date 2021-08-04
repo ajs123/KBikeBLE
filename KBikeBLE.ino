@@ -1,7 +1,6 @@
 /* Bluetooth console for Keiser M3 **********************************
-    V0.17
 *********************************************************************/
-#define VERSION "0.17"
+#define VERSION "0.18"
 
 #include <Arduino.h>
 #include <bluefruit.h> // nrf52 built-in bluetooth
