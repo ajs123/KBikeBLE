@@ -197,7 +197,7 @@ void display_numbers()
 eAnalogReference analog_reference = AR_INTERNAL;
 
 #ifndef SAADC_CALIBRATE_OFFSET
-analogCalibrateOffset() // Periodic calibration of the ADC
+void analogCalibrateOffset() // Periodic calibration of the ADC
 {
   const uint32_t calibrate_done = ( (SAADC_EVENTS_CALIBRATEDONE_EVENTS_CALIBRATEDONE_Generated << 
                                       SAADC_EVENTS_CALIBRATEDONE_EVENTS_CALIBRATEDONE_Pos )
