@@ -70,30 +70,31 @@ When first connected to a new bike, the resistance or gear display will almost c
 
 Open the Adafruit Bluefruit Connect app on your phone, tablet, or laptop. If the blue LED has gone away by the time you've downloaded it, reset the feather.
 
-KBikeBLE should show up in the list of nearby devices. Hit Connect. The app should connect to KBikeBLE. The blue LED should go from flashing to on, and the app should show the current battery charge along with a list of services. If you enabled BLEUart in options.h, one of the listed functions will be UART. Choose UART, type "batt" (without the quotes) and hit Send. Or type "help" then hit Send for a list of commands. You can do the same things through the Serial Monitor in the Arduino IDE, under Tools, as long as the USB cable remains connected.
+KBikeBLE should show up in the list of nearby devices. Hit Connect. The app should connect to KBikeBLE. The blue LED should go from flashing to on, and the app should show the current battery charge (if you included BLEBAS in options.h) along with a list of services ("modules"). If you enabled BLEUart in options.h, one of the listed modules will be UART. Choose UART. Check that the app is set to include an end-of-line.  Then type "batt" (without the quotes) and hit Send. Or type "help" then hit Send for a list of commands. 
+
+You can do the same things through the Serial Monitor in the Arduino IDE, under Tools, as long as you included USE_SERIAL in options.h and the USB cable remains connected.
 
 ## Calibrating to your bike
 
-As you can see by moving the gearshift lever, the lever, through a cable, moves the magnetic brake so that more or less of the flywheel is affected by the magnets. There's a gear on the position sensing potentiometer that meshes with teeth on the inside of the magnet assembly when the magnet assembly is placed on the bike. The rotation of both parts when the teeth come together can vary. Calibration basically involves locating an index position.
+The gearshift lever, through a cable, moves the magnetic brake so that more or less of the flywheel is under the influence of the magnets. Behind the cone-shaped magnet assembly, there's a position sensing potentiometer that's linked the the magnet assembly through gear teeth that mesh when the magnet assembly is placed on the bike. The rotation of both parts during assembly can vary. Calibration basically involves correcting for the variation.
 
 As with the Keiser computer, the present calibration procedure requires Keiser's red calibration tool.  The tool fits over the flywheel and provides  "pockets" on both sides of the flywheel to receive the magnets. Holding the magnets against the tool provides the needed index position.
 
 With the tool in hand, proceed as follows:
 
-1. Be sure that KBikeBLE is awake. Turn the pedals, and confirm that the blue LED is flashing.
-1. Connect to the bike either by ensuring that the USB port is connected and opening the Serial Monitor in the Arduino IDE, or by connecting through the Adafruit Bluefruit Connect app (iPhone/iPad, Android, or Mac) and choosing UART.
+1. Be sure that KBikeBLE is awake. Turn the pedals so that the display comes on and the blue LED is flashing.
+1. Connect to the bike either by ensuring that the USB port is connected and opening the Serial Monitor in the Arduino IDE, or by connecting through the Adafruit Bluefruit Connect app (iPhone/iPad, Android, or Mac) and choosing UART. If you've left USE_SERIAL and BLEUART defined in options.h, either will work.
 1. Type *calibrate* and tap Send (phone or tablet) or Return.  (Note: all commands are case-insensitive.)
-1. KBikeBLE will ask you to confirm that you want to calibrate. Type Y and Send or Return. 
+1. KBikeBLE will ask you to confirm that you want to calibrate. Type Y and Send or Return. From here, you'll get further prompts and countdowns, but no further typing is required, so your hands are free to hold the calibration tool and move the magnet assembly.  Be sure to abide by the instruction to leave the gearshift lever at the bottom and move the magnet assembly by hand. Any tension in the cable can affect the measurement. When prompted, gently holding the magnets in the pockets of the tool is all you need to do.
 1. KBikeBLE will walk you through the procedure. 
     * At two steps - placing the tool on the flywheel and moving it up to the magnet assembly, and moving the magnets against the pockets in the tool - it will prompt and then show a 5-second count as you follow the instructions.  
-    * Be sure to abide by the instruction to leave the gearshift lever at the bottom and move the magnet assembly by hand. Any tension in the cable can affect the measurement.
-    * Gently holding the magnets in the pockets of the tool is all you need to do.
     * KBikeBLE will show you the ten magnet position mesurements it has taken. These should be pretty consistent. Check that they vary by no more than a few single digits. Check that the first few and last few are similar to the middle measurements, indicating that you got the magnets settled into the pockets before measurements begain and held them there throughout. If in doubt, you can always repeat the procedure.
-1. KBikeBLE will tell you what offset and factor it has determined. The offset is actually what has been determined, as (as far as we know) the factor shouldn't change. *These values are not yet active.*
+1. KBikeBLE will tell you what offset and factor it has determined. The offset is actually what has been determined, since (as far as we know) the factor shouldn't change. *These values are not yet active.*
 1. Type *activate* and hit Send or Return. This makes the newly determined calibration active. 
-1. Be sure to set the tool aside, and move the gearshift lever up and down. You should see the gear number (1 to 24) or the % resistance (0 to more than 100) change accordingly, and the full range should be available.
+1. Be sure to remove the tool, and move the gearshift lever up and down. You should see the gear number (1 to 24) or the % resistance change accordingly.
     * NOTE: Moving the lever beyond 100% (up to where the mechanical brake touches the flywheel) will switch between the gear and % resistance displays.
-    * You'll probably find that setting the gearshift lever in a vertical position gives a resistance reading of about 40% and a gear number of 13 or 14. This might vary, but if the cable was adjusted to allow the magnet assembly to be as far away from the flywheel as it can go at the bottom, and the mechanical brake in firm contact at the top, a vertical lever will be at about 40% or around the border between gears 13 and 14.
+    * You'll probably find that setting the gearshift lever in a vertical position gives a resistance reading of about 40% and a gear number of 13 or 14. This might vary, but if the cable was adjusted to allow the magnet assembly to be as far away from the flywheel as it can go at the bottom, and the mechanical brake in firm contact at the top, a vertical lever will be at about 40% or around the border between gears 13 and 14. 
+    * At the bottom (minimum), the gear number should be 1 and the resistance at least in the neighborhood of 0 (depends upon cable adjustment). At the top (mechanical brake) the gear will be 24 and the resistance will be well over 100%. Remember that each time you go beyond 100%, the display will switch between gear number and % resistance.
 1. KBikeBLE is now using the calibration, but it hasn't been saved. If you'd reset the Feather now, it would go back to the defaults that were saved to flash memory.  Type *write* and Send or Return.  KBikeBLE will ask for confirmation. Use y to confirm, and the calibration will be saved.  The next time you reset the Feather, the startup log will show the values being read from flash.
 
 ## Final notes
