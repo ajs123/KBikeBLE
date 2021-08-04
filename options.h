@@ -103,11 +103,15 @@
 #define USE_SERIAL  // Incorporate USB serial functions including the console and any debugging.
 #define BLEUART     // Activates serial over BLE
 #define BLEBAS      // Activate BLE battery service
-#define SAADC_TACQ  // Use the extension to the Adafruit nRF52 core to set ADC acquisition time 
-                    //   - improves resistance measuresments but not yet part of the distribution
-#define SAADC_CALIBRATE_OFFSET // Use the extension to the Adafruit nRF52 core to support calibration
-                               // of the SAADC offset
-#define READ_CPU_TEMP  // Adafruit nRF52 core includes readCPUTemperature()
 
+/* The following depend upon functions provided by the Adafruit nRF52 core that are not present
+ * in v0.24. 
+ */
+#define SAADC_TACQ  // The Adafruit nRF52 core includes analogSampleTime().
+                    // This will reduce variability in resistance measurements but the system will function without it.
+#define SAADC_CALIBRATE_OFFSET // The Adafruit core includes analogCalibrateOffset().
+                               // If not defined here, one will be compiled in from the .ino.
+#define READ_CPU_TEMP  // The Adafruit nRF52 core includes readCPUTemperature().
+                       // If note defined here, one will be compiled in from the .ino. 
 
 #endif
