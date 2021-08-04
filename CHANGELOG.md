@@ -64,3 +64,5 @@
   - Moved globals to globals.h - start of some code cleanup
     - Moved BLE service definitions and flags to BLE_services.h
     - Cleaner struct definition for BLE data
+- V0.18
+  - 
