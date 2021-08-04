@@ -107,11 +107,11 @@
 /* The following depend upon functions provided by the Adafruit nRF52 core that are not present
  * in v0.24. 
  */
-#define SAADC_TACQ  // The Adafruit nRF52 core includes analogSampleTime().
+//#define SAADC_TACQ  // The Adafruit nRF52 core includes analogSampleTime().
                     // This will reduce variability in resistance measurements but the system will function without it.
-#define SAADC_CALIBRATE_OFFSET // The Adafruit core includes analogCalibrateOffset().
+//#define SAADC_CALIBRATE_OFFSET // The Adafruit core includes analogCalibrateOffset().
                                // If not defined here, one will be compiled in from the .ino.
-#define READ_CPU_TEMP  // The Adafruit nRF52 core includes readCPUTemperature().
+//#define READ_CPU_TEMP  // The Adafruit nRF52 core includes readCPUTemperature().
                        // If note defined here, one will be compiled in from the .ino. 
 
 #endif
