@@ -9,7 +9,21 @@
 	],
 	"settings": {
 		"files.associations": {
-			"iostream": "cpp"
+			"iostream": "cpp",
+			"ostream": "cpp",
+			"*.tcc": "cpp",
+			"exception": "cpp",
+			"memory_resource": "cpp",
+			"fstream": "cpp",
+			"iosfwd": "cpp",
+			"new": "cpp",
+			"sstream": "cpp",
+			"streambuf": "cpp",
+			"cstdlib": "cpp",
+			"nrf.h": "c",
+			"wiring_private.h": "c",
+			"nrfx.h": "c",
+			"wiring_constants.h": "c"
 		},
 		"telemetry.enableCrashReporter": false
 	}

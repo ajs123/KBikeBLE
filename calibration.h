@@ -17,13 +17,15 @@
 // The factor shouldn't change unless there is a significant change in the total resistance of the sense pot,
 // the high side voltage, or the high side impedance.
 // The offset changes from bike to bike due to how the magnet assembly engages with the sense pot.
-#define RESISTANCE_OFFSET 154.6       // From Raw ADC - Keiser graph regression
+#define RESISTANCE_OFFSET 161.7       // From Raw ADC - Keiser graph regression
 #define RESISTANCE_FACTOR 0.2182
+//#define RESISTANCE_OFFSET 168.7       // 154.6 * (3.6/3.3) - For Vdd reference instead of 3.6V fixed
+//#define RESISTANCE_FACTOR 0.2380      // 0.2182 * (3.6/3.3)
 
 // Calibration with the Keiser tool assumes that the normalized resistance is this value when the
-// magnet is snug against the semicircular pocket in the tool
+// magnet is snug against the semicircular pocket in the tool. This corresponds to the bottom
+// edge of gear 14 in Keiser's graph.
 #define CALTOOL_RES 40
-
 
 // Power vs. resistance at reference cadence (90 RPM) as Ax^2 + Bx + C
 // The following, which is pretty good from Keiser gears 2-20, was abandonded in favor of a table lookup//
