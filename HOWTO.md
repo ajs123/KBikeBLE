@@ -1,7 +1,8 @@
 # How to build, install, and operate
 ## Parts needed
 1. [Adafruit Feather nRF52840 Express](https://www.adafruit.com/product/4062)
-![Feather](docs/nRF52840FE.jpg)
+
+  ![Feather](docs/nRF52840FE.jpg)
 1. A generic 128x64 pixel monochrome OLED display. These displays most commonly incorporate SH1106, SD1306, or similar display driver chips. Be sure that it's supported by the [U8G2 library](https://github.com/olikraus/u8g2). To use the KBikeBLE code essentially as-is, choose one that comes configured for an I2C interface. 
 1. Pullup resistors for the I2C clock and data lines. Many (most?) of these displays will require you to add pullup resistors - something in the 10K-20K range - from the SCL and SDA pins to Vcc. According to your skills and how you plan to mount things, you can do that right on the back of the display board or in the wiring from the Feather to the display.
 1. A suitable Lithium-Polymer battery, if you want the computer to work untethered. Note that the current code expects a battery and may endlessly flash the low battery indicator if one isn't there.  A little 350 mAHr battery will power the device for a week or so. An 1800 mAHr battery will keep it going for a couple of months.
