@@ -1,9 +1,9 @@
 # How to build, install, and operate
 ## Parts needed
-1. Adafruit Feather nRF52840 Express
+1. [Adafruit Feather nRF52840 Express](https://www.adafruit.com/product/4062)
 1. A generic 128x64 pixel monochrome OLED display. These displays most commonly incorporate SH1106, SD1306, or similar display driver chips. To use the KBikeBLE code essentially as-is, choose one that comes configured for an I2C interface. 
 21. Probably, pullup resistors for the I2C clock and data lines. Many (most?) of these displays will require you to add pullup resistors - something in the 10K-20K range - from the SCL and SDA pins to Vcc. According to your skills and how you plan to mount things, you can do that right on the back of the display board or in the wiring from the Feather to the display.
-1. A suitable Lithium-Polymer battery, if you want the computer to work untethered. Note that the current code expects a battery and may endlessly flash the low battery indicator if one isn't there.  A little 375 mAHr battery will power the device for a week or so. An 1800 mAHr battery will keep it going for a couple of months.
+1. A suitable Lithium-Polymer battery, if you want the computer to work untethered. Note that the current code expects a battery and may endlessly flash the low battery indicator if one isn't there.  A little 350 mAHr battery will power the device for a week or so. An 1800 mAHr battery will keep it going for a couple of months.
 1. A cable to connect to the bike, via the RJ9 connector on the resistance magnet assembly (right behind the crank shaft on the left side). RJ9 is the standard for handsets on landline phones, so these are easy to get. Some choices are
    - An RJ9 cable, with the connector cut off of one end, conductors stripped, and connected to the Feather by your preferred means. These cables are made to be mechanically terminated with insulation displacement connectors, so conductors are sometimes hard to strip cleanly.
    - An intact RJ9 cable, and an RJ9 receptacle to provide easily soldered wires for connection to the Feather.
@@ -59,12 +59,9 @@
 
 At reset, KBikeBLE will briefly show a little startup log. When run for the first time, it should indicate that it's written default calibration values ("Factor" and "Offset") to flash memory. It will also show a current ADC (resistance sense) reading, indicate that it's run an ADC calibration, and show a second reading. On subsequent resets, it should show that's it's *read* calibration from flash, and if you haven't moved the bike from a very cool spot to a very hot spot the two ADC readings will probably be almost the same.
 
-The display should then switch to the normal contents: 
+After a short delay, you should see the normal cadence/resistance (or gear)/power display: 
 
-* Battery indicator at the top right
-* RPM (cadence)
-* Resistance % or Gear
-* Power
+![display](docs/std_disp.jpeg)
 
 When first connected to a new bike, the resistance or gear display will almost certainly be wrong. But you should be able to pedal the bike an see the cadence. The blue Bluetooth LED will be flashing (rapidly for 30 seconds, then more slowly) and you should be able to connect.
 
