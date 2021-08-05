@@ -1,6 +1,7 @@
 # How to build, install, and operate
 ## Parts needed
 1. [Adafruit Feather nRF52840 Express](https://www.adafruit.com/product/4062)
+![Feather](docs/nRF52840FE.jpg)
 1. A generic 128x64 pixel monochrome OLED display. These displays most commonly incorporate SH1106, SD1306, or similar display driver chips. Be sure that it's supported by the [U8G2 library](https://github.com/olikraus/u8g2). To use the KBikeBLE code essentially as-is, choose one that comes configured for an I2C interface. 
 1. Pullup resistors for the I2C clock and data lines. Many (most?) of these displays will require you to add pullup resistors - something in the 10K-20K range - from the SCL and SDA pins to Vcc. According to your skills and how you plan to mount things, you can do that right on the back of the display board or in the wiring from the Feather to the display.
 1. A suitable Lithium-Polymer battery, if you want the computer to work untethered. Note that the current code expects a battery and may endlessly flash the low battery indicator if one isn't there.  A little 350 mAHr battery will power the device for a week or so. An 1800 mAHr battery will keep it going for a couple of months.
@@ -32,43 +33,52 @@
   \*** Include a 2.2K Ohm resistor between the green wire and the pin on the Feather.
 
 ## Installing the software
-### Determining the display configuration
-
 * Install the Arduino IDE if you haven't already, and follow Adafruit's instructions for installing the core for the Feather nRF52840 Express. 
 * Install the required libraries via the Arduino Library Manager:
   * Adafruit Bluefruit
   * U8G2 display
-* Configure the U8G2 library for your display.
-  * Choose an example from those that come with the U8G2 library, such as full_buffer/GraphicsTest or full_buffer/HelloWorld.  
-  * Near the top, look for a "constructor" line that matches your display. You specify what display you have by un-commenting the appropriate line. These are organized by driver chip (SD1306, SH1106, etc.) and interface. Taking apart an example...
+* You'll probably want to run some of the examples to ensure that the Arduino installation is working.
+
+### Configure the U8G2 library for your display.
+* Choose an example from those that come with the U8G2 library, such as full_buffer/GraphicsTest or full_buffer/HelloWorld.  
+* Near the top, look for a "constructor" line that matches your display. You'll specify what display you have by un-commenting the appropriate line. These are organized by driver chip (SD1306, SH1106, etc.) and interface. Taking apart an example...
+    ```C
+    U8G2_SH1106_128X64_NONAME_F_HW_I2C display(U8G2_R1, /* reset=*/U8X8_PIN_NONE);
+    ```
+  All of the constructor lines begin with `U8G2_`
+
+    ... followed by the driver chip, e.g., `_SH1106`
+
+    ... then the dimensions in pixels, e.g., `_128x64`
+
+    ... and the vendor, in this case `_NONAME` for a generic display
+
+    ... `_F` for full buffer operation which is required for KBikeBLE
+
+    ... and finally `_HW_I2C` which is correct for an I2C interface display connected to the SCL and SDA pins on the Feather.
+
+  The name, `display` in this example, is the name used to refer to the display elsewhere in the code. Many of the U8G2 examples use `u8g2` here. Later, when you copy the constructor line to globals.h in the KBikeBLE code, you'll use `display`.
   
-    `U8G2_SH1106_128X64_NONAME_F_HW_I2C display(U8G2_R1, /* reset=*/U8X8_PIN_NONE);`
+  Finally, notice the `U8G2_R1` in the example above. The `R1` specifies portrait (128 pixels vertical, 64 horizontal) orientation. When experimenting with the U8G2 examples, you can simply un-comment a line that seems right and leave the default `R0`. But later, in globals.h, you need to use `R1`.
 
-    * All of the constructors begin with `U8G2_`
-    * ...followed by the driver chip, e.g., `_SH1106`
-    * ... then the dimensions in pixels, e.g., `_128x64`
-    * ... and the vendor, in this case `_NONAME` for a generic display
-    * ... `_F` for full buffer operation which is required for KBikeBLE
-    * ... and finally `_HW_I2C` which is correct for an I2C interface display connected to the SCL and SDA pins on the Feather.
-    * The name, `display` in this example, is the name used to refer to the display elsewhere in the code. Many of the U8G2 examples use `u8g2` here. Later, when you copy the constructor line to globals.h in the KBikeBLE code, you'll use `display`.
-    * Finally, notice the `U8G2_R1` in the example above. The `R1` specifies portrait (128 pixels vertical, 64 horizontal) orientation. When experimenting with the U8G2 examples, you can simply un-comment a line that seems right and leave the default `R0`. But later, in globals.h, you need to use `R1`.
-
-  * Run the example. If it works - great! If not, look again for an another appropriate line, or check online. Often, reviews from other buyers will mention what worked for them with U8G2. More than one may work, but the display might look better with certain choices, or the effect of a call to display.setContrast() (see below) may be different. 
-  * Copy the correct constructor line to globals.h in the indicated spot, being sure to leave the name as `display` and to keep the `U8G2_R1`.
+* Run the example. If it works - great! If not, look again for an another appropriate line, or check online. Often, reviews from other buyers will mention what worked for them with U8G2. More than one may work, but the display might look better with certain choices, or the effect of a call to setContrast() (see below) may be different. 
+* Copy the correct constructor to globals.h in the indicated spot, being sure to leave the name as `display` and to keep the `U8G2_R1`. If you've chosen an I2C interface display, only the driver and vendor will change.
 
 ### Choosing options
 
-* Look over options.h. The file includes a number of options, with some guidance for each: 
-  * Display contrast (brightness). 
-  * Power-saving timeouts, and whether power savings between cycling sessions is by full power-down or just idling all tasks.
-  * Filtering the keep the resistance display and power readings from flipping around too much (note: if electrical connections are secure, you shouldn't need much filtering).
-  * Whether you want to default to showing the "gear" like the Keiser computer, or the resistance in %. 
-  * Bluetooth power. 
-  * Whether you want to connect to KBikeBLE's command line interface via the USB (Serial) port and/or BluetoothLE (using Adafruit's app). 
-* Pay attention to the settings at the very bottom of options.h. The software makes use of some functions not included in the Adafruit core for the Feather, as of version 0.24. You must leave the #defines commented out or un-commented, according to whether the indicated functions are included in the release that you're using.
-* Now use the Arduino IDE to download the KBikeBLE to the Feather.
+Look over options.h. The file includes a number of options, with some guidance for each: 
+* Display contrast (brightness). 
+* Power-saving timeouts, and whether power savings between cycling sessions is by full power-down or just idling all tasks.
+* Filtering the keep the resistance display and power readings from flipping around too much (note: if electrical connections are secure, you shouldn't need much filtering).
+* Whether you want to default to showing the "gear" like the Keiser computer, or the resistance in %. 
+* Bluetooth power. 
+* Whether you want to connect to KBikeBLE's command line interface via the USB (Serial) port and/or BluetoothLE (using Adafruit's app). 
 
-## Getting started
+Pay attention to the settings at the very bottom of options.h. The software makes use of some functions not included in the Adafruit core for the Feather, as of version 0.24. You must leave the #defines commented out or un-commented, according to whether the indicated functions are included in the release that you're using.
+
+## Download and first run
+
+Now use the Arduino IDE to download the KBikeBLE to the Feather.
 
 At reset, KBikeBLE will briefly show a little startup log. When run for the first time, it should indicate that it's written default calibration values ("Factor" and "Offset") to flash memory. It will also show a current ADC (resistance sense) reading, indicate that it's run an ADC calibration, and show a second reading. On subsequent resets, it should show that's it's *read* calibration from flash, and if you haven't moved the bike from a very cool spot to a very hot spot the two ADC readings will probably be almost the same.
 
