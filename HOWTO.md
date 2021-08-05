@@ -97,6 +97,17 @@ With the tool in hand, proceed as follows:
     * At the bottom (minimum), the gear number should be 1 and the resistance at least in the neighborhood of 0 (depends upon cable adjustment). At the top (mechanical brake) the gear will be 24 and the resistance will be well over 100%. Remember that each time you go beyond 100%, the display will switch between gear number and % resistance.
 1. KBikeBLE is now using the calibration, but it hasn't been saved. If you'd reset the Feather now, it would go back to the defaults that were saved to flash memory.  Type *write* and Send or Return.  KBikeBLE will ask for confirmation. Use y to confirm, and the calibration will be saved.  The next time you reset the Feather, the startup log will show the values being read from flash.
 
+### Alternative calibration against the Keiser computer
+
+If you don't have the red Keiser calibration tool but do have the original Keiser computer and are confident that it was properly calibrated to your bike, you can proceed as follows:
+
+1. Disconnect the KBikeBLE cable from the bike and plug in the Keiser computer in its place.
+1. Turn the crank to wake up the Keiser computer. Wait for it to complete its startup and to show the gear indicator.
+1. Adjust the gearshift lever so that the gear is right at the edge between gear 13 and gear 14. Flickering between the two, about equal time for each, is perfect. The Keiser computers shut down quickly when the crank isn't turning, so you may need to turn it occasionally. 
+1. Without moving the gearshift lever or disturbing the magnet assembly, remove the Keiser cable and plug in the KBikeBLE cable.
+1. Follow the calibration procedure above, but when prompted to place the tool and move the magnet assembly, just leave the bike untouched.
+1. Use *activate* and *write* as described above to use the new settings and write them to flash memory.
+
 ## Final notes
 
 ### Gear vs. resistance display
