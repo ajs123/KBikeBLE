@@ -4,7 +4,11 @@
 
     ![Feather](docs/nRF52840FE.jpg)
 1. A generic 128x64 pixel monochrome OLED display. These displays most commonly incorporate SH1106, SD1306, or similar display driver chips. Be sure that it's supported by the [U8G2 library](https://github.com/olikraus/u8g2). To use the KBikeBLE code essentially as-is, choose one that comes configured for an I2C interface. 
-1. Pullup resistors for the I2C clock and data lines. Many (most?) of these displays will require you to add pullup resistors - something in the 10K-20K range - from the SCL and SDA pins to Vcc. According to your skills and how you plan to mount things, you can do that right on the back of the display board or in the wiring from the Feather to the display.
+
+    ![OLED](docs/OLED.jpg)
+    
+    The picture shows the display as it will be oriented in use. 
+1. Pullup resistors for the I2C clock and data lines. Many (most?) of the generic displays will require you to add pullup resistors - something in the 10K-20K range - from the SCL and SDA pins to Vcc. According to your skills and how you plan to mount things, you can do that right on the back of the display board or in the wiring from the Feather to the display. 
 1. A suitable Lithium-Polymer battery, if you want the computer to work untethered. Note that the current code expects a battery and may endlessly flash the low battery indicator if one isn't there.  A little 350 mAHr battery will power the device for a week or so. An 1800 mAHr battery will keep it going for a couple of months.
 1. A cable to connect to the bike, via the RJ9 connector on the resistance magnet assembly (right behind the crank shaft on the left side). RJ9 is the standard for handsets on landline phones, so these are easy to get. Some choices are
    - An RJ9 cable, with the connector cut off of one end, conductors stripped, and connected to the Feather by your preferred means. These cables are made to be mechanically terminated with insulation displacement connectors, so conductors are sometimes hard to strip cleanly.
@@ -15,15 +19,20 @@
 1. A Keiser calibration tool.
 
   ## Connecting the parts
+
+  Wire things as follows. You can solder the header pins to the Feather and use a prototyping board or jumpers. Considering the modest number of connections, you can even start with micro-clip jumper wires to be sure that you have everything right. If you're super-confident in what goes where, and already know how the components will be mounted in whatever case you choose, you can even solder directly.
+
+  Assuming you're using an I2C display...
+
   Part | Pin/conductor | Where | Notes
   ---- | ------------- | ----- | -----
   OLED display | Vcc | 3V
   || SCL | SCL
   || SDA | SDA
-  || Gnd | Gnd
+  || Gnd | Gnd | Ground is the only pin that has to be connected to two places: the OLED display and the RJ9 cable to the bike.
   Battery || JST connector | Be sure that the polarity is correct!
   RJ9 (bike) | Green* | Pin 9** | Crank (pedal rotation) switch***
-  || Black* | Pin 10* | Resistance sensor excitation
+  || Black* | Pin 10* | Resistance sensor excitation. It's connected to a GPIO pin so that the software can de-energize the sensor on the bike to save power.
   || Red* | Pin A1 | Resistance magnet position
   || Yellow* | Gnd | Resistance sensor / crank switch common
 
@@ -60,7 +69,7 @@
 
   The name, `display` in this example, is the name used to refer to the display elsewhere in the code. Many of the U8G2 examples use `u8g2` here. Later, when you copy the constructor line to globals.h in the KBikeBLE code, you'll use `display`.
   
-  Finally, notice the `U8G2_R1` in the example above. The `R1` specifies portrait (128 pixels vertical, 64 horizontal) orientation. When experimenting with the U8G2 examples, you can simply un-comment a line that seems right and leave the default `R0`. But later, in globals.h, you need to use `R1`.
+  Finally, notice the `U8G2_R1` in the example above. The `R1` specifies portrait (128 pixels vertical, 64 horizontal) orientation - the orientation shown in the photo above. When experimenting with the U8G2 examples, you can simply un-comment a line that seems right and leave the default `R0`. But later, in globals.h, you need to use `R1`.
 
 * Run the example. If it works - great! If not, look again for an another appropriate line, or check online. Often, reviews from other buyers will mention what worked for them with U8G2. More than one may work, but the display might look better with certain choices, or the effect of a call to setContrast() (see below) may be different. 
 * Copy the correct constructor to globals.h in the indicated spot, being sure to leave the name as `display` and to keep the `U8G2_R1`. If you've chosen an I2C interface display, only the driver and vendor will change.
