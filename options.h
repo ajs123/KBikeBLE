@@ -65,6 +65,8 @@
    Different OLED displays are affected differently by the contrast settings 
    Defaults are for a generic SH1106, which doesn't provide a very wide brightness range. Higher values
    can involve significantly higher current (battery usage) without much difference in brightness or clarity.
+   Lower values may result in a relatively subtle reduction in brigthness, or blanking the display entirely.
+   Experiment with your display.
 */
 
 #define CONTRAST_FULL 128   // Full and reduced display brightness. These depend upon the display used.
