@@ -160,6 +160,18 @@ If the resistance display jumps around a lot, check that your wiring is secure. 
 
 If you wish, you can set filter values in options.h.  You shouldn't need values more than 2. Note that there are separete settings for the resistnce display and for the power estimate that's displayed and provided via Bluetooth. This is because training software may have its own filtering. Naturally, there is some tradeoff between a steady display and responsiveness.  Again, if the display is annoyingly variable, check your electrical connections.
 
+### Power (battery) use
+The system draws current from the battery as follows, under operating and idle conditions:
+
+Operating state | Current | Time from an 1800 mAHr battery | Notes
+--------------- | ------- | ------------------------------ | -----
+In use | 11 mA | 130 hours | Display CONTRAST_FULL = 128
+Idle | 1.0 mA* | 60 days | POWERSAVE = 2 (idle, not shutdown)
+
+*The idle current can be reduced to about 0.55 mA by removing the NeoPixel device, which has a significant idle current even when not off, from the Feather. The author, and others, have succeeded in removing it with no damage to the board by nibbling away at it with precision side-cutters. Of course, your results may vary, so try it only if you're comfortable and OK with it if you have to buy a replacement.
+
+When idle, the system removes the voltage that's applied to the resistance sense potentiometer in order to read the magnet position, saving 0.33 mA. On the other hand, the system has to leave the crank switch energized (through the on-chip 20K pullup within the nRF52840 chip) because it depends upon the switch for wakeup when the user starts pedaling. It's possible to get unlucky, and for the user to walk away with the crank switch closed. This will consume an additional 0.17 mA. It's unlikely, since the switch closes only in one small portion of the crank rotation, and very, very unlikely to happen repeatedly. On the TO DO list is an option to power down the crank switch, for those who paln to expose a reset switch on the outside of their finished device.
+
 ## Training software
 
 KBikeBLE provides the BLE Cycling Power Service and should be compatible with a wide range of training software. The author has most experience with excellent, open source, Golden Cheetah. Be patient: While (for example) the Adafruit Bluefruit Connect app will connect instantly, Golden Cheetah (for example) can take half a minute or more.

@@ -24,6 +24,7 @@
   - Clean up code in connect callbacks
   - Review for functions that should be inline
   - C++ style for C-style #defines and macros where appropriate
+- Option to power down the crank sensor, for those who plan to expose a reset or wakeup switch on the packaged computer.
 
 ONE DAY?
 - Servo on the resistance for full FTMS function!
