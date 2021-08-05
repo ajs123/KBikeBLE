@@ -23,7 +23,7 @@
   RJ9 (bike) | Green* | Pin 9** | Crank (pedal rotation) switch***
   || Black* | Pin 10* | Resistance sensor excitation
   || Red* | Pin A1 | Resistance magnet position
-  || Green* | Gnd | Resistance sensor / crank switch common
+  || Yellow* | Gnd | Resistance sensor / crank switch common
 
   \* Colors refer to the standard RJ9 conductors on most cables
   
