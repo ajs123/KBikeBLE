@@ -106,8 +106,17 @@
 #define BLEUART     // Activates serial over BLE
 #define BLEBAS      // Activate BLE battery service
 
+/* Startup "log".
+   The little log screen that appears at startup is useful for verifying that storage of calibration
+   in flash memory is working, and ADC offset calibration is happening. For a regular user of the bike,
+   it's pointless. Set the timeout to have it go by very quickly, or pause after reading flash
+   and after ADC calibration.
+*/
+#define LOG_PAUSE 2000 // milliseconds
+
 /* The following depend upon functions provided by the Adafruit nRF52 core that are not present
- * in v0.24. 
+   in v0.24. If you are using a later version or the github master, leave these #defines. Otherwise, 
+   comment them out.
  */
 #define SAADC_TACQ  // The Adafruit nRF52 core includes analogSampleTime().
                     // This will reduce variability in resistance measurements but the system will function without it.

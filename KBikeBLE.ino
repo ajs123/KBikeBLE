@@ -300,12 +300,10 @@ void ADC_setup() // Set up the ADC for ongoing resistance measurement
   delay(1);                 // Let the ADC settle before any measurements. Only important if changing the reference or possibly resolution
 
   displog.printf("\nADC %.1f\n", averageADC());
-  displog.printf("T %.2f\n", readCPUTemperature());
+  //displog.printf("T %.2f\n", readCPUTemperature());
   analogCalibrateOffset();
-  //if (analogCalibrateOffset()) displog.println("Cal done.");
-  //else displog.println("Cal undone.");
   displog.printf("ADC %.1f\n", averageADC());
-  delay(5000);
+  delay(LOG_PAUSE);
 }
 
 /*****************************************************************************************************
@@ -605,7 +603,7 @@ void init_cal()
     displog.printf(" %.4f\n", res_factor);
   }
 
-  delay(2000);
+  delay(LOG_PAUSE);
 }
 
 /********************************************************************************
