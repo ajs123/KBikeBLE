@@ -3,25 +3,32 @@
 1. [Adafruit Feather nRF52840 Express](https://www.adafruit.com/product/4062)
 
     ![Feather](docs/nRF52840FE.jpg)
-1. A generic 128x64 pixel monochrome OLED display. These displays most commonly incorporate SH1106, SD1306, or similar display driver chips. Be sure that it's supported by the [U8G2 library](https://github.com/olikraus/u8g2). To use the KBikeBLE code essentially as-is, choose one that comes configured for an I2C interface. 
+1. A generic 128x64 pixel, 1.3" diagonal monochrome OLED display. These displays most commonly incorporate SH1106, SD1306, or similar display driver chips. Be sure that it's supported by the [U8G2 library](https://github.com/olikraus/u8g2). To use the KBikeBLE code essentially as-is, choose one that comes configured for an I2C interface. 
 
     ![OLED](docs/OLED.jpg)
     
     The picture shows the display as it will be oriented in use. 
 1. Pullup resistors for the I2C clock and data lines. Many (most?) of the generic displays will require you to add pullup resistors - something in the 10K-20K range - from the SCL and SDA pins to Vcc. According to your skills and how you plan to mount things, you can do that right on the back of the display board or in the wiring from the Feather to the display. 
-1. A suitable Lithium-Polymer battery, if you want the computer to work untethered. Note that the current code expects a battery and may endlessly flash the low battery indicator if one isn't there.  A little 350 mAHr battery will power the device for a week or so. An 1800 mAHr battery will keep it going for a couple of months.
-1. A cable to connect to the bike, via the RJ9 connector on the resistance magnet assembly (right behind the crank shaft on the left side). RJ9 is the standard for handsets on landline phones, so these are easy to get. Some choices are
-   - An RJ9 cable, with the connector cut off of one end, conductors stripped, and connected to the Feather by your preferred means. These cables are made to be mechanically terminated with insulation displacement connectors, so conductors are sometimes hard to strip cleanly.
+1. A suitable Lithium-Polymer battery, if you want the computer to work untethered. The current code expects a battery, though it would not be hard to comment out those pieces.  A little 350 mAHr battery will power the device for a week or so. An 1800 mAHr battery will keep it going for a couple of months.
+1. A cable to connect to the bike, via the RJ9 connector on the resistance magnet assembly (right behind the crank shaft on the left side). RJ9 is the standard for handsets on landline phones, so these are easy to get, and it's not hard to tuck under the plastic cover on the bike. Because these are handset cables, you can get coiled versions similar to the one that's in the stock bike. 
+
+     ![RJ9 cable](docs/Coiled_cable.jpg)![RJ9 receptacle](docs/RJ9_receptacle.jpg)
+
+   Some choices are
+    - An RJ9 cable, with the connector cut off of one end, conductors stripped, and connected to the Feather by your preferred means. These cables are made to be mechanically terminated with insulation displacement connectors, so conductors are sometimes hard to strip cleanly.
    - An intact RJ9 cable, and an RJ9 receptacle to provide easily soldered wires for connection to the Feather.
    - Pull the existing cable from the Keiser computer and tap into that connector. Note that presently it may be helpful to retain the ability to compare Keiser computer readings with KBikeBLE readings, so destruction of the Keiser cable or making it hard to switch between the two isn't recommended.
-1. Transient protection for the crank (pedal) rotation input to the Feather. While this may be unnecessary since the sensor assembly on the bike has a diode for the same purpose, the prototype used a 2.2K ohm resistor between the crank switch and the digital input to the Feather. 
-1. Some sort of case. The prototype used a nice paper box with a piece of an old CD case as a window in the lid, and pieces of foam to take up unused space inside. Note that the OLED display is configured for *portrait* (vertical) orientation.
-1. A Keiser calibration tool.
+1. Transient protection for the crank (pedal) rotation input to the Feather. While this may be unnecessary since the sensor assembly on the bike has a diode for the same purpose, and the GPIO pins have some protection as well, the prototype used a 2.2K ohm resistor between the crank switch and the digital input to the Feather.
+1. Some sort of case. The prototype used a nice paper box with a piece of an old CD case as a window in the lid, and pieces of foam to take up unused space inside. Remember that the OLED display is configured for *portrait* (vertical) orientation.
+1. A Keiser calibration tool. See the section below on calibration for alternatives.
+
+    ![Keiser tool](docs/Keiser_tool.jpg)
+
 
   ## Connecting the parts
 
-  Wire things as follows. You can solder the header pins to the Feather and use a prototyping board or jumpers. Considering the modest number of connections, you can even start with micro-clip jumper wires to be sure that you have everything right. If you're super-confident in what goes where, and already know how the components will be mounted in whatever case you choose, you can even solder directly.
-
+  Wire things as shown below. You can solder the header pins to the Feather and use a prototyping board or jumpers. Considering the modest number of connections, you can start with micro-clip jumper wires to be sure that you have everything right. If you're super-confident in what goes where, and already know how the components will be mounted in whatever case you choose, you can even solder directly. 
+  
   Assuming you're using an I2C display...
 
   Part | Pin/conductor | Where | Notes
@@ -32,15 +39,17 @@
   || Gnd | Gnd | Ground is the only pin that has to be connected to two places: the OLED display and the RJ9 cable to the bike.
   Battery || JST connector | Be sure that the polarity is correct!
   RJ9 (bike) | Green* | Pin 9** | Crank (pedal rotation) switch***
-  || Black* | Pin 10* | Resistance sensor excitation. It's connected to a GPIO pin so that the software can de-energize the sensor on the bike to save power.
-  || Red* | Pin A1 | Resistance magnet position
+  || Black* | Pin 10** | Resistance sensor excitation. It's connected to a GPIO pin so that the software can de-energize the sensor on the bike to save power.
+  || Red* | Pin A1** | Resistance magnet position
   || Yellow* | Gnd | Resistance sensor / crank switch common
 
   \* Colors refer to the standard RJ9 conductors on most cables
   
-  \** If changing any of these, edit bike_interface.h accordingly
+  \** The resistance magnet position can use any analog input (A0-A5) and the sensor excitation and crank switch can use any GPIO (5-13 or A0-A5). If changing any of these, edit bike_interface.h accordingly
 
   \*** Include a 2.2K Ohm resistor between the green wire and the pin on the Feather.
+
+  Note: An option for the display is to use the [Adafruit FeatherWing display](https://www.adafruit.com/product/4650). In that case, all you'll need to connect is the four RJ9 conductors and the series resistor. If you use the FeatherWing and install all of the header pins, Button A will be on Feather Pin 9, which per the chart below is assigned to the crank switch. You can (a) leave that header pin off of the FeatherWing, (b) use a different pin for the crank switch (green wire) and edit bike_interface.h accordinlgy, or (c) don't worry about it, as it won't hurt anything, and the button could be handy for testing without plugging into the bike.
 
 ## Installing the software
 * Install the Arduino IDE if you haven't already, and follow Adafruit's instructions for installing the core for the Feather nRF52840 Express. 
