@@ -8,6 +8,9 @@
 #include <bluefruit.h> // nrf52 built-in bluetooth
 #include "options.h"
 
+// U8G2 display instance. What goes here depends upon the specific display and interface. See U8G2 examples.
+U8G2_SH1106_128X64_NONAME_F_HW_I2C display(U8G2_R1, /* reset=*/U8X8_PIN_NONE); // 128 x 64 SH1106 display on hardware I2C
+
 // Globals. Variable accessed in multiple places are declared here.
 // Those used only in specific functions are declared within or nearby.
 
@@ -34,23 +37,18 @@ bool batt_low;      // Battery low
 #define TICK_INTERVAL 500 
 uint8_t ticker = 0; // Ticker for the main loop scheduler - inits to zero, also is reset under certain circumstances
 
-
 volatile float inst_cadence = 0;        // Cadence calculated in the crank ISR
 volatile uint16_t crank_count = 0;      // Cumulative crank rotations - set by the crank sensor ISR, reported by CPS and used to determine cadence
 volatile uint32_t crank_event_time = 0; // Set to the most recent crank event time by the crank sensor ISR [ms]
-//volatile uint32_t last_change_time;   // Used in the crank sensor ISR for sensor debounce [ms]. Initialized to millis() in Setup().
 volatile bool new_crank_event = false; // Set by the crank sensor ISR; cleared by the main loop
 volatile uint16_t crank_ticks;         // 1/1024 sec per tick crank clock, for Cycling Power Measurement [ticks]
-
-//uint32_t prior_event_time = 0;          // Used in the main loop to hold the time of the last reported crank event [ms]
 
 bool ftm_active = true; // Once a client connects with either service, we stop updating the other.
 bool cp_active = true;
 
 uint8_t display_state = 2; // Display state: 0 = off, 1 = dim, 2 = full on
 
-// U8G2 display instance. What goes here depends upon the specific display and interface. See U8G2 examples.
-U8G2_SH1106_128X64_NONAME_F_HW_I2C display(U8G2_R1, /* reset=*/U8X8_PIN_NONE); // 128 x 64 SH1106 display on hardware I2C
+bool gear_display = GEAR_DISPLAY;     // Determines whether the display shows the gear or the % resistance
 
 // FTMS Service Definitions
 BLEService svc_ftms = BLEService(0x1826);                       // FiTness machine service

@@ -6,7 +6,6 @@
   - Better writeup on calibration
 - Calibration
   - Consider using a different reference, e.g., Vdd ref for the pot to maintain cal near battery end of charge
-  - Check for temperature dependence or other sources of variation - is SAADC offset calibration needed?
 - Keeping more parameters or options in the filesystem
   - Gear vs. Res% display
 - BLE Services
@@ -25,6 +24,7 @@
   - Review for functions that should be inline
   - C++ style for C-style #defines and macros where appropriate
 - Option to power down the crank sensor, for those who plan to expose a reset or wakeup switch on the packaged computer.
+- Option to skip battery code, for those who have none
 
 ONE DAY?
 - Servo on the resistance for full FTMS function!

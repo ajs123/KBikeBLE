@@ -11,13 +11,17 @@
 1. Pullup resistors for the I2C clock and data lines. Many (most?) of the generic displays will require you to add pullup resistors - something in the 10K-20K range - from the SCL and SDA pins to Vcc. According to your skills and how you plan to mount things, you can do that right on the back of the display board or in the wiring from the Feather to the display. 
 1. A suitable Lithium-Polymer battery, if you want the computer to work untethered. The current code expects a battery, though it would not be hard to comment out those pieces.  A little 350 mAHr battery will power the device for a week or so. An 1800 mAHr battery will keep it going for a couple of months.
 1. A cable to connect to the bike, via the RJ9 connector on the resistance magnet assembly (right behind the crank shaft on the left side). RJ9 is the standard for handsets on landline phones, so these are easy to get, and it's not hard to tuck under the plastic cover on the bike. Because these are handset cables, you can get coiled versions similar to the one that's in the stock bike. 
-
-     ![RJ9 cable](docs/Coiled_cable.jpg)![RJ9 receptacle](docs/RJ9_receptacle.jpg)
-
    Some choices are
     - An RJ9 cable, with the connector cut off of one end, conductors stripped, and connected to the Feather by your preferred means. These cables are made to be mechanically terminated with insulation displacement connectors, so conductors are sometimes hard to strip cleanly.
+
+      ![RJ9 cable](docs/Coiled_cable.jpg)
+   - A replacement Keiser cable. [They're available](https://www.sportsmith.com/cord-computer-to-pickup/product/10341?serial=1187), they include nice strain releifs for where they pass through the tubing in the bike along with a coiled section to accommodate the handlebar adjustment, and they have conductors that should be easy to strip. NOTE: The author has not verified the conductor colors on these cables. See the notes at the end for how to do that.
+
+     ![Keiser cable](docs/Keiser_cable.jpg)
    - An intact RJ9 cable, and an RJ9 receptacle to provide easily soldered wires for connection to the Feather.
-   - Pull the existing cable from the Keiser computer and tap into that connector. Note that presently it may be helpful to retain the ability to compare Keiser computer readings with KBikeBLE readings, so destruction of the Keiser cable or making it hard to switch between the two isn't recommended.
+
+      ![RJ9 receptacle](docs/RJ9_receptacle.jpg)
+   - Use the existing cable in the bike. Note that presently it may be helpful to retain the ability to compare Keiser computer readings with KBikeBLE readings, so destruction of the Keiser cable or making it hard to switch between the two isn't recommended.
 1. Transient protection for the crank (pedal) rotation input to the Feather. While this may be unnecessary since the sensor assembly on the bike has a diode for the same purpose, and the GPIO pins have some protection as well, the prototype used a 2.2K ohm resistor between the crank switch and the digital input to the Feather.
 1. Some sort of case. The prototype used a nice paper box with a piece of an old CD case as a window in the lid, and pieces of foam to take up unused space inside. Remember that the OLED display is configured for *portrait* (vertical) orientation.
 1. A Keiser calibration tool. See the section below on calibration for alternatives.
@@ -163,7 +167,7 @@ If you want to change the default at reset, you can do so in options.h.
 ### Stability and filtering of resistance measurements
 The resistance measurements are pretty sensitive (a few digits translates to a 1% change) and the nRF52840 analog to digital converter has some variability from measurement to measurement. Accordingly, KBikeBLE provides some ability to filter measurements to provide a steadier display. 
 
-An important note at the outset: Measurements should be *fairly* consistent. Unfiltered, % resistance might flicker by one digit, or maybe two. Using a release of the Adafruit nRF52 core beyond version 0.24 should provide cleaner readings because it provides an advantageous ADC setting (at this writing, the current Master on github provides this, and you then want to uncomment #define SAADC_TACQ in options.h). 
+An important note at the outset: Measurements should be *fairly* consistent. Unfiltered, % resistance might flicker by one digit, or maybe two. Using a release of the Adafruit nRF52 core beyond version 0.24 should provide cleaner readings because it provides an advantageous ADC setting. If you are using a version beyond 0.24, including the current github master, then you then want to uncomment #define SAADC_TACQ in options.h to take advantage of it. 
 
 If the resistance display jumps around a lot, check that your wiring is secure. Check in particular whether the indicated resistance varies with whether the display is at full brightness, or dimmed. Through the command line interface, you can also check the resistance when the display is off but Bluetooth hasn't shut down yet. The resistance measurements should not depend upon the display. If they do, this is a specific indication that your ground connection at the Feather isn't secure.
 
@@ -186,3 +190,25 @@ When idle, the system removes the voltage that's applied to the resistance sense
 KBikeBLE provides the BLE Cycling Power Service and should be compatible with a wide range of training software. The author has most experience with excellent, open source, Golden Cheetah. Be patient: While the Adafruit Bluefruit Connect app (for example) will connect immediately, Golden Cheetah (for example) can take a minute or so.
 
 KBikeBLE also provides the BLE FiTness Machine Service (FTMS). That service is incomplete. Speed in mph is basically faked by providing a multiple of pedal cadence. FTMS might be abandoned if it proves to be extraneous.  Most software that connects with FTMS wants to set the resistance. Providing a resistance servo in place of the lever is at the bottom of the TO DO list.
+
+## Verifying cable color codes
+
+Just in case you're not sure that the conductor colors on your cable match up with the RJ9 standard, here's how to check.
+
+What we expect is...
+
+Conductor | What
+--------- | ----
+Green     | Crank (pedal rotation) switch
+Black     | One end of the resistance sense potentiometer
+Red       | Resistance magnet position
+Yellow    | Other end (common or ground) of the resistance sense potentiometer and the crank switch
+
+Accordingly, with an ohm meter, you should get the following:
+
+From | To | What
+---- | -- | ----
+Green | Yellow | An open circuit most of the time, and zero ohms (switch closure) for a small portion of each pedal rotation
+Black | Yellow | About 10K ohms
+Red | Yellow | Between 0 and 10k ohms - increases as you rotate the magnet assembly
+Red | Black | Between 0 and 10K ohms - decreases as you rotate the magnet assembly

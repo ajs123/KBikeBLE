@@ -29,7 +29,7 @@
 //#define DEBUGGING        // Activates debug code. Requires USE_SERIAL for any serial console bits.
 
 // Anything here is inserted into lever_check(), usually to avoid having to wait for some condition 
-//#define LEVER_EXTRAS batt_pct = 19; batt_low = true;
+//#define LEVER_EXTRAS batt_pct = 19; batt_low = true;  // Test the low battery indicator
                                  
 #ifdef QUICKTIMEOUT
 #define DIM_TIME 20       //60         // Duration (sec) of no pedaling to dim display (if supported)
@@ -38,7 +38,7 @@
 #define BLE_PS_TIME 30 //1200 // Duration (sec) to powersave with BLE connection
 #endif
 
-#if defined(USE_SERIAL) && defined(DEBUGGING)
+#if (USE_SERIAL) && defined(DEBUGGING)
 #define DEBUG(x, l) \
   Serial.print(F(x));  \
   Serial.print(F(l));
@@ -70,11 +70,6 @@ uint8_t stepnum = 0;
 #define roundpos(x) ((x) + 0.5)
 
 #define ANALOG_OVERSAMPLE 4 // Resistance measurements can be noisy!
-
-// Pushing the gearshift lever to the top switches between display of Keiser gear number and display of % resistance
-uint8_t lever_state = 0b00000000;
-bool gear_display = GEAR_DISPLAY;
-#define BRAKE 100 // Edge of the valid range, less than the max reading
 
 /*********************************************************************************
   Display code
@@ -234,48 +229,6 @@ void analogCalibrateOffset() // Periodic calibration of the ADC
 }
 #endif
 
-#ifndef READ_CPU_TEMP
-float readCPUTemperature()
-{
-  // These are defined simply to make the ensuing code easier to read.
-  // Ready and triggers are 0x01, and not ready is 0x00. Other analog code depends upon ready
-  // Since these are unlikely to ever change, use of the defines is just a formalilty.
-  const uint32_t temp_ready = ( (TEMP_EVENTS_DATARDY_EVENTS_DATARDY_Generated << TEMP_EVENTS_DATARDY_EVENTS_DATARDY_Pos)
-                                && TEMP_EVENTS_DATARDY_EVENTS_DATARDY_Msk );
-
-  const uint32_t temp_not_ready = ( (TEMP_EVENTS_DATARDY_EVENTS_DATARDY_NotGenerated << TEMP_EVENTS_DATARDY_EVENTS_DATARDY_Pos)
-                                    && TEMP_EVENTS_DATARDY_EVENTS_DATARDY_Msk );
-
-  const uint32_t temp_trigger = ( (TEMP_TASKS_START_TASKS_START_Trigger << TEMP_TASKS_STOP_TASKS_STOP_Pos)
-                                  && TEMP_TASKS_START_TASKS_START_Msk );
-
-  const uint32_t temp_stop = ( (TEMP_TASKS_STOP_TASKS_STOP_Trigger << TEMP_TASKS_STOP_TASKS_STOP_Pos)
-                                  && TEMP_TASKS_STOP_TASKS_STOP_Msk );
-
-  uint8_t en;
-  int32_t temp;
-  (void) sd_softdevice_is_enabled(&en);
-  if (en) 
-  {
-    sd_temp_get(&temp);
-    return temp / 4.0;
-  }
-  else
-  {
-    NRF_TEMP->EVENTS_DATARDY = temp_not_ready; // Only needed in case another function is also looking at this event flag
-    NRF_TEMP->TASKS_START = temp_trigger; 
-  
-    while (NRF_TEMP->EVENTS_DATARDY != temp_ready);
-    temp = NRF_TEMP->TEMP;                      // Per anomaly 29 (unclear whether still there), TASKS_STOP will clear the TEMP register.
-
-    NRF_TEMP->TASKS_STOP = temp_stop;           // Per anomaly 30 (unclear whether still there), the temp peripheral needs to be shut down
-    NRF_TEMP->EVENTS_DATARDY = temp_not_ready;
-
-    return temp / 4.0F;
-  }
-} 
-#endif
-
 float averageADC()
 {
   uint32_t raw_sum = 0;
@@ -350,7 +303,7 @@ void startAdv()
   Bluefruit.Advertising.addService(svc_ftms, svc_cps);   // Advertise the services
   Bluefruit.Advertising.addData(0x16, FTMS_Adv_Data, 5); // Required data field for FTMS
 
-#ifdef BLEUART
+#if (BLEUART)
   Bluefruit.Advertising.addService(bleuart);
 #endif
 
@@ -614,7 +567,7 @@ SoftwareTimer update_timer;
 
 void setup()
 {
-#ifdef USE_SERIAL
+#if (USE_SERIAL)
   Serial.begin(115200);
 #endif
 
@@ -655,7 +608,7 @@ void setup()
   setupCPS();
 
   // Start the BLEUart service
-  #ifdef BLEUART
+  #if (BLEUART)
     bleuart.begin();
   #endif
 
@@ -814,6 +767,8 @@ uint16_t last_crank_count = 0;
 uint8_t crank_still_timer = 3; // No pedaling is defined as this many crank checks with no event
 uint16_t stop_time;
 
+uint8_t lever_state = 0b00000000;
+#define BRAKE 100                     // Edge of the valid range, less than the max reading
 void lever_check() // Moving the gear lever to the top switches the resistance/gear display mode
 {
   lever_state = (lever_state << 1) & 0b00000011 | (inst_resistance > BRAKE);
@@ -1003,10 +958,10 @@ inline void console_reset()
 
 inline void console_init()
 {
-  #ifdef USE_SERIAL    // These shouldn't be needed
+  #if (USE_SERIAL)    // These shouldn't be needed
     console = &Serial;
   #endif
-  #ifdef BLEUART
+  #if (BLEUART)
     console = &bleuart;
   #endif
   bool result = xTaskCreate(console_check, "ConsoleCheck", SCHEDULER_STACK_SIZE_DFLT, 
@@ -1019,7 +974,7 @@ bool console_source_check()
 {
   bool avail = false;
 
-  #ifdef USE_SERIAL                 // If enabled, check Serial
+  #if (USE_SERIAL)                 // If enabled, check Serial
     bool s = Serial.available();
     if (s) 
     {
@@ -1028,13 +983,13 @@ bool console_source_check()
     }
   #endif
 
-  #ifdef BLEUART                    // If enabled, check BLEUart
+  #if (BLEUART)                    // If enabled, check BLEUart
   bool b = bleuart.available();
   if (b)
   {
     console = &bleuart;
     avail = true;
-    #ifdef USE_SERIAL
+    #if (USE_SERIAL)
       if (s)                         // BLE has precedence, so dump any serial input
         while (Serial.available()) Serial.read();   
     #endif
@@ -1097,21 +1052,16 @@ void console_take_input()
     }
 }
 
-// void console_send(const char * message)
-// {
-//   console->write((uint8_t*) message, strlen(message));
-// } 
-
 #define PBLEN 128
 char pbuffer[PBLEN];
-#define CONSOLE_RESP(string) console->write((uint8_t *) string, strlen(string)) //console_send(string)
-#define CONSOLE_PRINT(format, args...) snprintf(pbuffer, PBLEN, format, args); \
+#define CONSOLE_PRINT(string) console->write((uint8_t *) string, strlen(string)) //console_send(string)
+#define CONSOLE_PRINTF(format, args...) snprintf(pbuffer, PBLEN, format, args); \
                                        console->write((uint8_t *) pbuffer, strlen(pbuffer)) //console_send(pbuffer)
 
 void cmd_batt()
 {
-  CONSOLE_PRINT("Battery voltage %.2f \n", batt_mvolts/1000);//batt_mvolts*1000);
-  CONSOLE_PRINT(" %d%% charge\n\n", batt_pct);
+  CONSOLE_PRINTF("Battery voltage %.2f \n", batt_mvolts/1000);//batt_mvolts*1000);
+  CONSOLE_PRINTF(" %d%% charge\n\n", batt_pct);
 }
 
 void cmd_res()
@@ -1135,9 +1085,9 @@ void cmd_res()
     n_resistance++;
     if (true) //raw_resistance != last_resistance)
     {
-      CONSOLE_PRINT("Raw ADC value %d\n", raw_resistance);
-      CONSOLE_PRINT("Resistance %.1f%%\n", resistance);
-      CONSOLE_PRINT("Keiser gear number %d\n\n", gear);
+      CONSOLE_PRINTF("Raw ADC value %d\n", raw_resistance);
+      CONSOLE_PRINTF("Resistance %.1f%%\n", resistance);
+      CONSOLE_PRINTF("Keiser gear number %d\n\n", gear);
       last_resistance = raw_resistance;
 
       double delta = raw_resistance - mean;
@@ -1154,9 +1104,9 @@ void cmd_res()
   }
   if (n_resistance > 0) 
   {
-    CONSOLE_PRINT("%d measurements.\n", n_resistance);
-    CONSOLE_PRINT("Average ADC value %.1f\n", (float)sum_resistance / n_resistance);
-    CONSOLE_PRINT("Estimated mean %.1f; SD %.1f . \n\n", mean, sqrt(variance));
+    CONSOLE_PRINTF("%d measurements.\n", n_resistance);
+    CONSOLE_PRINTF("Average ADC value %.1f\n", (float)sum_resistance / n_resistance);
+    CONSOLE_PRINTF("Estimated mean %.1f; SD %.1f . \n\n", mean, sqrt(variance));
   }
 }
 
@@ -1167,62 +1117,62 @@ void cmd_adcref()
     analog_reference = AR_VDD4;
     res_offset *= (3.6 / 3.3);
     res_factor /= (3.6 / 3.3);
-    CONSOLE_RESP("ADC reference is now Vdd.\n\n");
+    CONSOLE_PRINT("ADC reference is now Vdd.\n\n");
   }
   else
   {
     analog_reference = AR_INTERNAL;
     res_offset *= (3.3 / 3.6);
     res_factor /= (3.3 / 3.6);
-    CONSOLE_RESP("ADC reference is now internal 3.6V.\n\n");
+    CONSOLE_PRINT("ADC reference is now internal 3.6V.\n\n");
   }
   analogReference(analog_reference);
 }
 
 void cmd_adccal()
 {
-  CONSOLE_RESP("Doing ADC calibration...");
+  CONSOLE_PRINT("Doing ADC calibration...");
   analogCalibrateOffset();
-  CONSOLE_RESP("Done.\n\n");
+  CONSOLE_PRINT("Done.\n\n");
 }
 
   void cmd_showcal()
   {
-    CONSOLE_PRINT("Offset %.1f; factor %.4f\n\n", res_offset, res_factor);
+    CONSOLE_PRINTF("Offset %.1f; factor %.4f\n\n", res_offset, res_factor);
   }
 
   void cmd_factor()
   {
     if (arg[0] == 0) //Should check for numeric as well
     {
-      CONSOLE_RESP("Factor command requires a numeric value.\n\n");
+      CONSOLE_PRINT("Factor command requires a numeric value.\n\n");
       return;
     }
     new_factor = atof(arg);
-    CONSOLE_PRINT("New factor will be %.4f  .\n", new_factor);
-    CONSOLE_RESP("Use activate to have the bike use the new value.\n\n");
+    CONSOLE_PRINTF("New factor will be %.4f  .\n", new_factor);
+    CONSOLE_PRINT("Use activate to have the bike use the new value.\n\n");
   }
 
   void cmd_offset()
   {
     if (arg[0] == 0) //Should check for numeric as well
     {
-      CONSOLE_RESP("Offset command requires a numeric value.\n\n");
+      CONSOLE_PRINT("Offset command requires a numeric value.\n\n");
       return;
     }
     new_offset = atof(arg);
-    CONSOLE_PRINT("New offset will be %.1f  .\n", new_offset);
-    CONSOLE_RESP("Use activate to have the bike use the new value.\n\n");
+    CONSOLE_PRINTF("New offset will be %.1f  .\n", new_offset);
+    CONSOLE_PRINT("Use activate to have the bike use the new value.\n\n");
   }
 
   void cmd_defaults()
   {
     new_offset = RESISTANCE_OFFSET;
     new_factor = RESISTANCE_FACTOR;
-    CONSOLE_RESP("Defaults...\n");
-    CONSOLE_PRINT("New offset will be %.1f  .\n", new_offset);
-    CONSOLE_PRINT("New factor will be %.4f  .\n", new_factor);
-    CONSOLE_RESP("Use activate to have the bike use these values.\n\n");
+    CONSOLE_PRINT("Defaults...\n");
+    CONSOLE_PRINTF("New offset will be %.1f  .\n", new_offset);
+    CONSOLE_PRINTF("New factor will be %.4f  .\n", new_factor);
+    CONSOLE_PRINT("Use activate to have the bike use these values.\n\n");
   }
 
   uint8_t i;
@@ -1233,7 +1183,7 @@ void cmd_adccal()
   {
     for (i = steps; i > 0; i--)
     {
-      CONSOLE_PRINT(" %d..", i);
+      CONSOLE_PRINTF(" %d..", i);
       delay(time);
     }
   }
@@ -1242,20 +1192,20 @@ void cmd_adccal()
   {
     if (AWAITING_CONF())
     {
-      CONSOLE_RESP("\n\nPlace the calibration tool on the flywheel and rotate the flywheel so that the calibration tool contacts the magnet assembly.\n");
+      CONSOLE_PRINT("\n\nPlace the calibration tool on the flywheel and rotate the flywheel so that the calibration tool contacts the magnet assembly.\n");
       delay_message(5, 1000);
       //base = analogRead(RESISTANCE_PIN);  // Baseline reading - should increase from here
-      CONSOLE_RESP("\nRotate the magnet assembly by hand so that the magnet settles into the pocket in the calibration tool.");
-      CONSOLE_RESP(" Do not use the lever!\n");
+      CONSOLE_PRINT("\nRotate the magnet assembly by hand so that the magnet settles into the pocket in the calibration tool.");
+      CONSOLE_PRINT(" Do not use the lever!\n");
       delay_message(5, 1000);
-      CONSOLE_RESP("\n\nHold while readings are taken...\n");
+      CONSOLE_PRINT("\n\nHold while readings are taken...\n");
 
       update_timer.stop();  // Suspend updates so that resistance updates don't interfere
       uint32_t cal_reading = 0;
       for (uint8_t i = 10; i > 0; i--)
       {
         reading = analogRead(RESISTANCE_PIN);
-        CONSOLE_PRINT("   %d \n", reading);
+        CONSOLE_PRINTF("   %d \n", reading);
         cal_reading += reading;
         delay(200);
       }
@@ -1263,21 +1213,21 @@ void cmd_adccal()
                              // be here if the timer were stopped.
 
       cal_reading /= 10;
-      CONSOLE_PRINT("Done. Average was %d.\n", cal_reading);
+      CONSOLE_PRINTF("Done. Average was %d.\n", cal_reading);
       new_offset = cal_reading - CALTOOL_RES/res_factor;
-      CONSOLE_PRINT("\nThe new offset is %.1f.\n", new_offset);
-      CONSOLE_RESP("\nUse activate to have the bike use these values.");
-      CONSOLE_RESP("If the readings weren't consistent, you can try again.\n\n");
+      CONSOLE_PRINTF("\nThe new offset is %.1f.\n", new_offset);
+      CONSOLE_PRINT("\nUse activate to have the bike use these values.");
+      CONSOLE_PRINT("If the readings weren't consistent, you can try again.\n\n");
       awaiting_conf = AWAITING_NONE;
   }
   else 
   {
-      CONSOLE_RESP("Enter the calibration procedure.\n");
-      CONSOLE_RESP("This will set the offset to match the bike.\n");
-      CONSOLE_RESP("If for any reason you need to change the factor, enter and activate it *before* proceeding.\n");
-      CONSOLE_RESP("\nBe sure that the resistance lever is at the bottom (lowest gear)");
-      CONSOLE_RESP(" and have the calibration tool ready to place on the flywheel.\n");
-      CONSOLE_RESP("Y to continue...");
+      CONSOLE_PRINT("Enter the calibration procedure.\n");
+      CONSOLE_PRINT("This will set the offset to match the bike.\n");
+      CONSOLE_PRINT("If for any reason you need to change the factor, enter and activate it *before* proceeding.\n");
+      CONSOLE_PRINT("\nBe sure that the resistance lever is at the bottom (lowest gear)");
+      CONSOLE_PRINT(" and have the calibration tool ready to place on the flywheel.\n");
+      CONSOLE_PRINT("Y to continue...");
       awaiting_conf = cmd_number;
       awaiting_timer = CONFIRMATION_TIMEOUT ;
   }
@@ -1289,14 +1239,14 @@ void cmd_activate()
   {
       res_offset = new_offset;
       res_factor = new_factor;
-      CONSOLE_RESP("\nActivate factor and offset confirmed.\n\n");
-      CONSOLE_PRINT("Offset %.1f; factor %.4f\n\n", res_offset, res_factor);
+      CONSOLE_PRINT("\nActivate factor and offset confirmed.\n\n");
+      CONSOLE_PRINTF("Offset %.1f; factor %.4f\n\n", res_offset, res_factor);
       awaiting_conf = AWAITING_NONE;
   }
   else 
   {
-      CONSOLE_PRINT("Factor will be %.4f and offset will be %.1f .\n", new_factor, new_offset);
-      CONSOLE_RESP("Y to make these the active values...");
+      CONSOLE_PRINTF("Factor will be %.4f and offset will be %.1f .\n", new_factor, new_offset);
+      CONSOLE_PRINT("Y to make these the active values...");
       awaiting_conf = cmd_number;
       awaiting_timer = CONFIRMATION_TIMEOUT ;
   }
@@ -1309,19 +1259,19 @@ void cmd_write()
       if (write_param_file("offset", &res_offset, sizeof(res_offset)) &
           write_param_file("factor", &res_factor, sizeof(res_factor)) )
           {
-            CONSOLE_RESP("\nWrite confirmed.\n\n");
+            CONSOLE_PRINT("\nWrite confirmed.\n\n");
           }
           else
           {
-            CONSOLE_RESP("\nFailed to write the files.\n\n");
+            CONSOLE_PRINT("\nFailed to write the files.\n\n");
           }
       awaiting_conf = AWAITING_NONE;
   }
   else 
   {
-      CONSOLE_RESP("Currently active factor and offset are...\n");
-      CONSOLE_PRINT("Offset %.1f; factor %.4f\n", res_offset, res_factor);
-      CONSOLE_RESP("Y to write these to the file...");
+      CONSOLE_PRINT("Currently active factor and offset are...\n");
+      CONSOLE_PRINTF("Offset %.1f; factor %.4f\n", res_offset, res_factor);
+      CONSOLE_PRINT("Y to write these to the file...");
       awaiting_conf = cmd_number;
       awaiting_timer = CONFIRMATION_TIMEOUT ;
   }
@@ -1332,25 +1282,25 @@ void cmd_read()
   if (read_param_file("offset", &new_offset, sizeof(new_offset)) &
       read_param_file("factor", &new_factor, sizeof(new_factor)))
     {
-      CONSOLE_RESP("Read from the parameter files:\n");
-      CONSOLE_PRINT("Offset %.1f; factor %.4f\n\n", new_offset, new_factor);
-      CONSOLE_RESP("Use activate to have the bike use these values.\n\n");
+      CONSOLE_PRINT("Read from the parameter files:\n");
+      CONSOLE_PRINTF("Offset %.1f; factor %.4f\n\n", new_offset, new_factor);
+      CONSOLE_PRINT("Use activate to have the bike use these values.\n\n");
     }
 }
 
 void cmd_comment()
 {
-  CONSOLE_PRINT("%s\n\n", arg);
+  CONSOLE_PRINTF("%s\n\n", arg);
 }
 
 void cmd_help()
 {
-    CONSOLE_RESP("\n");
+    CONSOLE_PRINT("\n");
     for (int i = 0; i < n_cmds; i++)
     {
-        CONSOLE_PRINT("%s - %s \n", cmd_table[i].cmd, cmd_table[i].help);
+        CONSOLE_PRINTF("%s - %s \n", cmd_table[i].cmd, cmd_table[i].help);
     }
-    CONSOLE_RESP("\n");
+    CONSOLE_PRINT("\n");
 }
 
 void process_cmd()
@@ -1362,7 +1312,7 @@ void process_cmd()
           cmd_table[awaiting_conf].cmdHandler();
       }
       else {
-          CONSOLE_RESP("Canceled.\n");
+          CONSOLE_PRINT("Canceled.\n");
           awaiting_conf = AWAITING_NONE;
       }
       //awaiting_conf = AWAITING_NONE;   // Each handler needs to reset awaiting_conf
@@ -1379,7 +1329,7 @@ void process_cmd()
       return;
     }
   }
-  CONSOLE_RESP("Not a valid command.");
+  CONSOLE_PRINT("Not a valid command.");
   cmd_help();
   return;
 }
@@ -1399,11 +1349,11 @@ void console_check(void *notUsed)
     }
     else if (AWAITING_CONF())
     {
-      CONSOLE_RESP(".");
+      CONSOLE_PRINT(".");
       if (--awaiting_timer == 0)
       {
         awaiting_conf = AWAITING_NONE;
-        CONSOLE_RESP("Cancelled.\n\n");
+        CONSOLE_PRINT("Cancelled.\n\n");
         console_clear();
       }
     }

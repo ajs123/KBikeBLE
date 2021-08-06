@@ -102,9 +102,9 @@
    bike, so enabling it is recommended. Presently, the BLEUart interface is fully developed, while the
    serial interface is not.
 */
-#define USE_SERIAL  // Incorporate USB serial functions including the console and any debugging.
-#define BLEUART     // Activates serial over BLE
-#define BLEBAS      // Activate BLE battery service
+#define USE_SERIAL  1 // Non-zero = Incorporate USB serial functions including the console and any debugging.
+#define BLEUART     1 // Non-zero = Activates serial over BLE
+#define BLEBAS      1 // Non-zero = Activate BLE battery service
 
 /* Startup "log".
    The little log screen that appears at startup is useful for verifying that storage of calibration
@@ -118,11 +118,9 @@
    in v0.24. If you are using a later version or the github master, leave these #defines. Otherwise, 
    comment them out.
  */
-#define SAADC_TACQ  // The Adafruit nRF52 core includes analogSampleTime().
-                    // This will reduce variability in resistance measurements but the system will function without it.
+#define SAADC_TACQ             // The Adafruit nRF52 core includes analogSampleTime().
+                               // This will reduce variability in resistance measurements but the system will function without it.
 #define SAADC_CALIBRATE_OFFSET // The Adafruit core includes analogCalibrateOffset().
                                // If not defined here, one will be compiled in from the .ino.
-#define READ_CPU_TEMP  // The Adafruit nRF52 core includes readCPUTemperature().
-                       // If note defined here, one will be compiled in from the .ino. 
 
 #endif
