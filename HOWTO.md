@@ -9,7 +9,7 @@
     
     The picture shows the display as it will be oriented in use. 
 1. Pullup resistors for the I2C clock and data lines. Many (most?) of the generic displays will require you to add pullup resistors - something in the 10K-20K range - from the SCL and SDA pins to Vcc. According to your skills and how you plan to mount things, you can do that right on the back of the display board or in the wiring from the Feather to the display. 
-1. A suitable Lithium-Polymer battery, if you want the computer to work untethered. The current code expects a battery, though it would not be hard to comment out those pieces.  A little 350 mAHr battery will power the device for a week or so. An 1800 mAHr battery will keep it going for a couple of months.
+1. A suitable Lithium-Polymer battery, if you want the computer to work untethered. A little 350 mAHr battery will power the device for a week or so. An 1800 mAHr battery will keep it going for a couple of months.
 1. A cable to connect to the bike, via the RJ9 connector on the resistance magnet assembly (right behind the crank shaft on the left side). RJ9 is the standard for handsets on landline phones, so these are easy to get, and it's not hard to tuck under the plastic cover on the bike. Because these are handset cables, you can get coiled versions similar to the one that's in the stock bike. 
    Some choices are
     - An RJ9 cable, with the connector cut off of one end, conductors stripped, and connected to the Feather by your preferred means. These cables are made to be mechanically terminated with insulation displacement connectors, so conductors are sometimes hard to strip cleanly.
@@ -96,6 +96,7 @@ Look over options.h. The file includes a number of options, with some guidance f
 * Whether you want to default to showing the "gear" like the Keiser computer, or the resistance in %. 
 * Bluetooth power. 
 * Whether you want to connect to KBikeBLE's command line interface via the USB (Serial) port and/or BluetoothLE (using Adafruit's app). 
+* Whether you have a battery connected, and want the Bluetooth battery service to be available
 
 Pay attention to the settings at the very bottom of options.h. The software makes use of some functions not included in the Adafruit core for the Feather, as of version 0.24. You must leave the #defines commented out or un-commented, according to whether the indicated functions are included in the release that you're using.
 

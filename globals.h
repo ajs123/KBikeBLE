@@ -30,9 +30,11 @@ uint8_t gear;          // Gear number: Index into power tables and, optionally, 
 bool suspended;        // Set to true when suspending the main loop
 #endif
 
-float batt_mvolts;  // Battery voltage
-uint8_t batt_pct;   // Battery percentage charge
-bool batt_low;      // Battery low
+#if HAVE_BATTERY
+  float batt_mvolts;  // Battery voltage
+  uint8_t batt_pct;   // Battery percentage charge
+  bool batt_low;      // Battery low
+#endif
 
 #define TICK_INTERVAL 500 
 uint8_t ticker = 0; // Ticker for the main loop scheduler - inits to zero, also is reset under certain circumstances

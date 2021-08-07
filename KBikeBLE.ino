@@ -114,40 +114,44 @@ void right_just(uint16_t number, int x, int y, int width)
   display.print(number);
 }
 
-#define BWIDTH 16
-#define BHEIGHT 8
-#define BUTTON 2
-#define BATT_POS_X 46
-#define BATT_POS_Y 0
-#define roundpct(pct, max) (((pct * max) + 50) / 100) // Integer arithmetic rounded % of max
-void draw_batt(uint8_t pct)
-{
-  display.drawFrame(BATT_POS_X, BATT_POS_Y, BWIDTH, BHEIGHT);                                  // Battery body
-  display.drawBox(BATT_POS_X + BWIDTH, BATT_POS_Y + ((BHEIGHT - BUTTON) / 2), BUTTON, BUTTON); // Battery "button"
-  display.setDrawColor(1);
-  display.drawBox(BATT_POS_X + 2, BATT_POS_Y + 2, roundpct(pct, (BWIDTH - 4)), (BHEIGHT - 4)); // Filled area proportional to charge estimate
-}
+#if HAVE_BATTERY
+  #define BWIDTH 16
+  #define BHEIGHT 8
+  #define BUTTON 2
+  #define BATT_POS_X 46
+  #define BATT_POS_Y 0
+  #define roundpct(pct, max) (((pct * max) + 50) / 100) // Integer arithmetic rounded % of max
+  void draw_batt(uint8_t pct)
+  {
+    display.drawFrame(BATT_POS_X, BATT_POS_Y, BWIDTH, BHEIGHT);                                  // Battery body
+    display.drawBox(BATT_POS_X + BWIDTH, BATT_POS_Y + ((BHEIGHT - BUTTON) / 2), BUTTON, BUTTON); // Battery "button"
+    display.setDrawColor(1);
+    display.drawBox(BATT_POS_X + 2, BATT_POS_Y + 2, roundpct(pct, (BWIDTH - 4)), (BHEIGHT - 4)); // Filled area proportional to charge estimate
+  }
 
-void blank_batt()
-{
-  display.setDrawColor(0);
-  display.drawBox(BATT_POS_X, BATT_POS_Y, BWIDTH + BUTTON, BHEIGHT);  // Erase the battery
-}
+  void blank_batt()
+  {
+    display.setDrawColor(0);
+    display.drawBox(BATT_POS_X, BATT_POS_Y, BWIDTH + BUTTON, BHEIGHT);  // Erase the battery
+  }
 
-#if (0) // not used
-void update_batt(uint8_t pct)
-{
-  display.setDrawColor(0); // Empty interior
-  display.drawBox(BATT_POS_X + 2, BATT_POS_Y + 2, BWIDTH - 4, BHEIGHT - 4);
-  display.setDrawColor(1);
-  display.drawBox(BATT_POS_X + 2, BATT_POS_Y + 2, pct * (BWIDTH - 4) / 100, (BHEIGHT - 4)); // Filled area proportional to charge estimate
-}
+  #if (0) // not used
+  void update_batt(uint8_t pct)
+  {
+    display.setDrawColor(0); // Empty interior
+    display.drawBox(BATT_POS_X + 2, BATT_POS_Y + 2, BWIDTH - 4, BHEIGHT - 4);
+    display.setDrawColor(1);
+    display.drawBox(BATT_POS_X + 2, BATT_POS_Y + 2, pct * (BWIDTH - 4) / 100, (BHEIGHT - 4)); // Filled area proportional to charge estimate
+  }
+  #endif
 #endif
 
 uint16_t prev_cad = 0;
 uint16_t prev_rg = 0;
 uint16_t prev_pwr = 0;
-uint8_t prev_batt = 0;
+#if HAVE_BATTERY
+  uint8_t prev_batt = 0;
+#endif
 const char *rg_labels[2] = {"GEAR", "RES %"};
 const char *rg_label = rg_labels[0];
 
@@ -156,7 +160,11 @@ void display_numbers()
   uint16_t rg = gear_display ? gear : roundpos(disp_resistance);
   uint16_t pwr = roundpos(power);
   uint16_t cad = roundpos(cadence);
-  if ((cad != prev_cad) || (rg != prev_rg) || (pwr != prev_pwr) || (batt_pct != prev_batt) || batt_low)
+  #if HAVE_BATTERY
+    if ((cad != prev_cad) || (rg != prev_rg) || (pwr != prev_pwr) || (batt_pct != prev_batt) || batt_low)
+  #else
+    if ((cad != prev_cad) || (rg != prev_rg) || (pwr != prev_pwr))
+  #endif
   {
     display.clearBuffer();
     display.setFont(DISPLAY_LABEL_FONT);
@@ -167,8 +175,9 @@ void display_numbers()
     display.setCursor(0, 100);
     display.print("WATTS");
 
-    if (!batt_low || (ticker % 2)) draw_batt(batt_pct);
-    //else blank_batt();
+    #if HAVE_BATTERY
+      if (!batt_low || (ticker % 2)) draw_batt(batt_pct);
+    #endif
 
     display.setFont(DISPLAY_NUMBER_FONT);
     right_just(cad, 10, 43, 18);
@@ -180,7 +189,9 @@ void display_numbers()
     prev_cad = cad;
     prev_rg = rg;
     prev_pwr = pwr;
-    prev_batt = batt_pct;
+    #if HAVE_BATTERY
+      prev_batt = batt_pct;
+    #endif
   }
 }
 
@@ -598,8 +609,8 @@ void setup()
   bledis.setModel("Bluefruit Feather52");
   bledis.begin();
 
-  // Start the BLE Battery Service and set it to 100%
-  #ifdef BLEBAS
+  // Start the BLE Battery Service
+  #if BLEBAS && HAVE_BATTERY
     blebas.begin();
   #endif
 
@@ -797,6 +808,7 @@ void update_resistance()
   lever_check();
 }
 
+#if HAVE_BATTERY
 void update_battery()
 {
   
@@ -824,6 +836,7 @@ void update_battery()
   blebas.write(batt_pct);
 #endif
 }
+#endif
 
 void process_crank_event()
 {
@@ -836,7 +849,9 @@ void process_crank_event()
       display.setPowerSave(0);
       display.setContrast(CONTRAST_FULL);
       display_state = 2;
-      ticker = BATT_TICKS; // Force battery check after the display has been off
+      #if HAVE_BATTERY
+        ticker = BATT_TICKS; // Force battery check after the display has been off
+      #endif
     }
 
     crank_still_timer = 0b100; // Reset the shift register used to detect no pedaling
@@ -846,7 +861,8 @@ void process_crank_event()
                   // there should possibly be a state flag.
 
     new_crank_event = false; // Reset the flag
-  }
+  } // new_crank_event
+
   else // If no crank event, check timeouts
   {
     crank_still_timer = crank_still_timer >> 1;
@@ -896,7 +912,7 @@ void process_crank_event()
 #endif
       }
     }
-  }
+  } // no new_crank_event
 }
 
 void updateBLE()
@@ -920,7 +936,7 @@ void updateBLE()
   }
 }
 
-#if defined(BLEUART) || defined(USE_SERIAL)
+#if (BLEUART) || (USE_SERIAL)
 #define SBUF_LEN 40  
 char sbuffer[SBUF_LEN];                 // Serial console input buffer
 char cmd[SBUF_LEN];                     // Tokenized command
@@ -1060,8 +1076,12 @@ char pbuffer[PBLEN];
 
 void cmd_batt()
 {
-  CONSOLE_PRINTF("Battery voltage %.2f \n", batt_mvolts/1000);//batt_mvolts*1000);
-  CONSOLE_PRINTF(" %d%% charge\n\n", batt_pct);
+  #if HAVE_BATTERY
+    CONSOLE_PRINTF("\nBattery voltage %.2f \n", batt_mvolts/1000);//batt_mvolts*1000);
+    CONSOLE_PRINTF(" %d%% charge\n\n", batt_pct);
+  #else
+    CONSOLE_PRINT("\nNo battery.\n\n");
+  #endif
 }
 
 void cmd_res()
@@ -1403,10 +1423,12 @@ void update(TimerHandle_t xTimerID)
 #endif
 
   // Things that happen on BATT_TICKS ------------------------------------------------------------------------------------
-  if ((ticker % BATT_TICKS) == 0)
-  {
-    update_battery();
-  }
+  #if HAVE_BATTERY
+    if ((ticker % BATT_TICKS) == 0)
+    {
+      update_battery();
+    }
+  #endif
 
   // Final things, as needed, on every tick ------------------------------------------------------------------------------
   if (display_state > 0)

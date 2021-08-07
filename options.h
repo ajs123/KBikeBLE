@@ -104,7 +104,11 @@
 */
 #define USE_SERIAL  1 // Non-zero = Incorporate USB serial functions including the console and any debugging.
 #define BLEUART     1 // Non-zero = Activates serial over BLE
-#define BLEBAS      1 // Non-zero = Activate BLE battery service
+
+/* Battery
+*/
+#define HAVE_BATTERY 1 // Non-zero = The system has a battery, so show the battery indicator
+#define BLEBAS       1 // Non-zero = If there's a battery, activate the BLE battery service
 
 /* Startup "log".
    The little log screen that appears at startup is useful for verifying that storage of calibration
