@@ -21,6 +21,7 @@ float inst_resistance; // Normalized resistance reading, determined from the edd
 float resistance;      // Normalized resistance used in power calculations (can be filtered)
 float disp_resistance; // Resistance valued that's displayed (can be filtered)
 uint32_t raw_resistance;  // Raw resistance measurement from the ADC. Global because it's reported in the serial monitor
+uint8_t lever_state = 0b00000000; // Indicates gearshift near top (bit 0) or was on last check (bit 1)
 float res_offset;      // Cal fators - raw_resistance to normalized resistance
 float res_factor;
 bool serial_present = false;

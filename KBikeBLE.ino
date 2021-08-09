@@ -76,7 +76,7 @@ uint8_t stepnum = 0;
 **********************************************************************************/
 
 #define DISPLAY_LABEL_FONT u8g2_font_helvB10_tr
-#define DISPLAY_NUMBER_FONT u8g2_font_helvB24_tn
+#define DISPLAY_NUMBER_FONT u8g2_font_helvB24_tr
 // Log used at startup
 #define LOG_FONT u8g2_font_7x14_tf
 #define LOG_WIDTH 9 
@@ -176,12 +176,23 @@ void display_numbers()
     display.print("WATTS");
 
     #if HAVE_BATTERY
-      if (!batt_low || (ticker % 2)) draw_batt(batt_pct);
+      if (!batt_low || (ticker % 2)) draw_batt(batt_pct);  // Draw low batt every other time --> flash
     #endif
 
     display.setFont(DISPLAY_NUMBER_FONT);
+
     right_just(cad, 10, 43, 18);
-    right_just(rg, 10, 85, 18);
+
+    if ( !(lever_state & 0b00000001) )  // Lever not presently near the top
+    {
+      right_just(rg, 10, 85, 18);
+    }
+    else
+    {
+      display.setCursor(10, 85);
+      display.print("<->");
+    }
+
     right_just(pwr, 10, 127, 18);
 
     display.sendBuffer();
@@ -265,6 +276,7 @@ void ADC_setup() // Set up the ADC for ongoing resistance measurement
 
   displog.printf("\nADC %.1f\n", averageADC());
   //displog.printf("T %.2f\n", readCPUTemperature());
+  displog.print("ADC cal\n");
   analogCalibrateOffset();
   displog.printf("ADC %.1f\n", averageADC());
   delay(LOG_PAUSE);
@@ -778,11 +790,11 @@ uint16_t last_crank_count = 0;
 uint8_t crank_still_timer = 3; // No pedaling is defined as this many crank checks with no event
 uint16_t stop_time;
 
-uint8_t lever_state = 0b00000000;
 #define BRAKE 100                     // Edge of the valid range, less than the max reading
+#define LEVER_MASK 0b00001111         // Up to 8 1's --> up to 7 samples that reistance must be < BRAKE
 void lever_check() // Moving the gear lever to the top switches the resistance/gear display mode
 {
-  lever_state = (lever_state << 1) & 0b00000011 | (inst_resistance > BRAKE);
+  lever_state = (lever_state << 1) & LEVER_MASK | (inst_resistance > BRAKE);
   if (lever_state == 0b00000001)
   {
     gear_display = !gear_display;
@@ -1086,10 +1098,9 @@ void cmd_batt()
 
 void cmd_res()
 {
-  uint32_t last_resistance = raw_resistance;
   uint32_t sum_resistance = 0;
   uint8_t n_resistance = 0;
-  uint8_t max_n = 100; // Default
+  uint8_t max_n = 20; // Default number of samples
 
   double mean = 0;
   double M2 = 0;
@@ -1099,22 +1110,18 @@ void cmd_res()
   {
     max_n = min(0xFF, max(atoi(arg), 1));
   }
-  for (uint8_t i = max_n; i > 0; i--)                     // Runs for 100 samples or until interrupted by input
+  for (uint8_t i = max_n; i > 0; i--)
   {
     sum_resistance += raw_resistance;
     n_resistance++;
-    if (true) //raw_resistance != last_resistance)
-    {
-      CONSOLE_PRINTF("Raw ADC value %d\n", raw_resistance);
-      CONSOLE_PRINTF("Resistance %.1f%%\n", resistance);
-      CONSOLE_PRINTF("Keiser gear number %d\n\n", gear);
-      last_resistance = raw_resistance;
+    CONSOLE_PRINTF("Raw ADC value %d\n", raw_resistance);
+    CONSOLE_PRINTF("Resistance %.1f%%\n", resistance);
+    CONSOLE_PRINTF("Keiser gear number %d\n\n", gear);
 
-      double delta = raw_resistance - mean;
-      mean += delta / n_resistance;
-      M2 += delta * (raw_resistance - mean);
-      variance = M2 / n_resistance;
-    }
+    double delta = raw_resistance - mean;   // Welford’s algorithm for variance from a sample stream
+    mean += delta / n_resistance;
+    M2 += delta * (raw_resistance - mean);
+    variance = M2 / n_resistance;
     if (console->available())
     {
       while (console->available()) console->read();  //NOTE: bleuart.flush() flushes input; Serial.flush() flushes output

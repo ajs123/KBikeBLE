@@ -102,7 +102,7 @@ Pay attention to the settings at the very bottom of options.h. The software make
 
 ## Download and first run
 
-Now use the Arduino IDE to download the KBikeBLE to the Feather.
+Before you use KBikeBLE for the first time, you may want to install the Adafruit Bluefruit Connect app on your phone, tablet or computer. You can use it to test BLE connections, and in the calibration steps below you can use its UART function instead of the Arduino serial monitor. Nordic's nRF Connect works well for testing BLE but doesn't provide the same UART functions. Now use the Arduino IDE to download the KBikeBLE to the Feather.
 
 At reset, KBikeBLE will briefly show a little startup log. When run for the first time, it should indicate that it's written default calibration values ("Factor" and "Offset") to flash memory. It will also show a current ADC (resistance sense) reading, indicate that it's run an ADC calibration, and show a second reading. On subsequent resets, it should show that's it's *read* calibration from flash, and if you haven't moved the bike from a very cool spot to a very hot spot the two ADC readings will probably be almost the same.
 
@@ -112,11 +112,11 @@ After a short delay, you should see the normal cadence/resistance (or gear)/powe
 
 When first connected to a new bike, the resistance or gear display will almost certainly be wrong. But you should be able to pedal the bike an see the cadence. The blue Bluetooth LED will be flashing (rapidly for 30 seconds, then more slowly) and you should be able to connect.
 
-Open the Adafruit Bluefruit Connect app on your phone, tablet, or laptop. If the blue LED has gone away by the time you've downloaded it, reset the feather.
+Open the Adafruit Bluefruit Connect app on your phone, tablet, or laptop. If the blue LED has already gone away, reset the feather.
 
-KBikeBLE should show up in the list of nearby devices. Hit Connect. The app should connect to KBikeBLE. The blue LED should go from flashing to on, and the app should show the current battery charge (if you included BLEBAS in options.h) along with a list of services ("modules"). If you enabled BLEUart in options.h, one of the listed modules will be UART. Choose UART. Check that the app is set to include an end-of-line.  Then type "batt" (without the quotes) and hit Send. Or type "help" then hit Send for a list of commands. 
+KBikeBLE should show up in the list of nearby devices. Hit Connect. The app should connect to KBikeBLE. The blue LED should go from flashing to on, and the app should show the current battery charge (if you defined HAVE_BATTERY 1 and BLEBAS 1 in options.h) along with a list of services ("modules"). If you enabled BLEUart in options.h, one of the listed modules will be UART. Choose UART. Check that the app is set to include an end-of-line.  Then type "batt" (without the quotes) and hit Send. Or type "help" then hit Send for a list of commands. 
 
-You can do the same things through the Serial Monitor in the Arduino IDE, under Tools, as long as you included USE_SERIAL in options.h and the USB cable remains connected.
+You can do the same things through the Serial Monitor in the Arduino IDE, under Tools, as long as you included USE_SERIAL 1 in options.h and the USB cable remains connected.
 
 ## Calibrating to your bike
 

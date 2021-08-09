@@ -72,6 +72,11 @@
 #define CONTRAST_FULL 128   // Full and reduced display brightness. These depend upon the display used.
 #define CONTRAST_DIM 0
 
+/* Battery
+*/
+#define HAVE_BATTERY 1 // Non-zero = The system has a battery, so show the battery indicator
+#define BLEBAS       1 // Non-zero = If there's a battery, activate the BLE battery service
+
 /* Low battery indicator - flashes when below this percentage. -----------------------------------------
    This ought to be determined by the level at which the proper ADC reference is lost. For the
    Adfruit Feather nrf52840 Express, things should work down to about 10%.
@@ -104,11 +109,6 @@
 */
 #define USE_SERIAL  1 // Non-zero = Incorporate USB serial functions including the console and any debugging.
 #define BLEUART     1 // Non-zero = Activates serial over BLE
-
-/* Battery
-*/
-#define HAVE_BATTERY 1 // Non-zero = The system has a battery, so show the battery indicator
-#define BLEBAS       1 // Non-zero = If there's a battery, activate the BLE battery service
 
 /* Startup "log".
    The little log screen that appears at startup is useful for verifying that storage of calibration
