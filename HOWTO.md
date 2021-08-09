@@ -138,7 +138,7 @@ With the tool in hand, proceed as follows:
 1. Be sure to remove the tool, and move the gearshift lever up and down. You should see the gear number (1 to 24) or the % resistance change accordingly.
     * NOTE: Moving the lever beyond 100% (up to where the mechanical brake touches the flywheel) will switch between the gear and % resistance displays.
     * You'll probably find that setting the gearshift lever in a vertical position gives a resistance reading of about 40% and a gear number of 13 or 14. This might vary, but if the cable was adjusted to allow the magnet assembly to be as far away from the flywheel as it can go at the bottom, and the mechanical brake in firm contact at the top, a vertical lever will be at about 40% or around the border between gears 13 and 14. 
-    * At the bottom (minimum), the gear number should be 1 and the resistance at least in the neighborhood of 0 (depends upon cable adjustment). At the top (mechanical brake) the gear will be 24 and the resistance will be well over 100%. Remember that each time you go beyond 100%, the display will switch between gear number and % resistance.
+    * At the bottom (minimum), the gear number should be 1 and the resistance at least in the neighborhood of 0 (depends upon cable adjustment). Approaching the top, the gear will reach 24 and the resistance will reach 100. Beyond the point corresponding to a resistance of 100%, the the display will switch between gear number and % resistance. 
 1. KBikeBLE is now using the calibration, but it hasn't been saved. If you'd reset the Feather now, it would go back to the defaults that were saved to flash memory.  Type *write* and Send or Return.  KBikeBLE will ask for confirmation. Use y to confirm, and the calibration will be saved.  The next time you reset the Feather, the startup log will show the values being read from flash.
 
 ### Alternative calibration against the Keiser computer
@@ -159,7 +159,7 @@ The gear display replicated Keiser's gear numbers. These are not evenly spaced, 
 
 The % resistance display is an approximately linear indication of the rotation of the magnet assembly, i.e., of the proportion of the magnets that is interacting with the flywheel. While there's a big difference between the "bottom" and "top" of a gear, the resistance at a given two-digit resistance is pretty repeatable.
 
-To switch what is indicated, move the gearshift lever to the very top for about a second (The display needs to be on, but you do not need to be pedaling!).
+To switch what is indicated, move the gearshift lever to the very top for about a second (The display needs to be on, but you do not need to be pedaling!). To switch back, move the gearshift to a lower position for a couple of seconds, then back to the top again.
 
 If you chose POWERSAVE = 1 in options.h, KBikeBLE will power down between sessions and when pedal movement causes it to restart the display will go back to the default.  Otherwise, the display will remain in its current mode until you again move the lever to the top.
 
