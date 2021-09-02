@@ -67,7 +67,7 @@
                 "ARDUINO=10607",
                 "ARDUINO_NRF52840_FEATHER",
                 "ARDUINO_ARCH_ADAFRUIT_NRF52_ARDUINO",
-                "ARDUINO_BSP_VERSION=\"0.24.0\"",
+                "ARDUINO_BSP_VERSION=\"1.0.0\"",
                 "NRF52840_XXAA",
                 "USBCON",
                 "USE_TINYUSB",

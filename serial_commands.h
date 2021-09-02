@@ -12,7 +12,7 @@ struct cmd_table_t {
 } ;
 
 // Define the command set
-extern cmdHandler_t cmd_batt, cmd_res, cmd_adcref, cmd_adccal, cmd_showcal, cmd_factor, cmd_offset, cmd_cal, 
+extern cmdHandler_t cmd_batt, cmd_res, cmd_adcref, cmd_adccal, cmd_temp, cmd_showcal, cmd_factor, cmd_offset, cmd_cal, 
                     cmd_activate, cmd_write, cmd_read, cmd_defaults, cmd_comment, cmd_help;
 
 const cmd_table_t PROGMEM cmd_table[] = {
@@ -20,6 +20,7 @@ const cmd_table_t PROGMEM cmd_table[] = {
   {"res", cmd_res, "<optional int> Monitor ADC readings - indicated number, or any input to stop."},
   {"adcref", cmd_adcref, "Toggle the analog reference between default 3.6V and Vdd."},
   {"adccal", cmd_adccal, "Calibrate the ADC offset."},
+  {"temp", cmd_temp, "Show the chip temperature (relevant to ADC offset)"},
   {"showcal", cmd_showcal, "Show the calibration currently in use."},
   {"factor", cmd_factor, "<float> Enter a new cal factor (should not be necessary)."},
   {"offset", cmd_offset, "<float> Enter a new calibration offset (follow with activate)."},

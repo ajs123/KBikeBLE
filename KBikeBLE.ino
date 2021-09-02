@@ -183,7 +183,7 @@ void display_numbers()
 
     right_just(cad, 10, 43, 18);
 
-    if ( !(lever_state & 0b00000001) )  // Lever not presently near the top
+/*     if ( !(lever_state & 0b00000001) )  // Lever not presently near the top
     {
       right_just(rg, 10, 85, 18);
     }
@@ -192,7 +192,10 @@ void display_numbers()
       display.setCursor(10, 85);
       display.print("<->");
     }
+ */
 
+  right_just(rg, 10, 85, 18);
+  
     right_just(pwr, 10, 127, 18);
 
     display.sendBuffer();
@@ -212,45 +215,6 @@ void display_numbers()
 
 eAnalogReference analog_reference = AR_INTERNAL;
 
-#ifndef SAADC_CALIBRATE_OFFSET
-void analogCalibrateOffset() // Periodic calibration of the ADC
-{
-  const uint32_t calibrate_done = ( (SAADC_EVENTS_CALIBRATEDONE_EVENTS_CALIBRATEDONE_Generated << 
-                                      SAADC_EVENTS_CALIBRATEDONE_EVENTS_CALIBRATEDONE_Pos )
-                                    && SAADC_EVENTS_CH_LIMITH_LIMITH_Msk );
-  
-  const uint32_t calibrate_not_done = ( (SAADC_EVENTS_CALIBRATEDONE_EVENTS_CALIBRATEDONE_NotGenerated << 
-                                          SAADC_EVENTS_CALIBRATEDONE_EVENTS_CALIBRATEDONE_Pos )
-                                        && SAADC_EVENTS_CH_LIMITH_LIMITH_Msk );
-  
-  const uint32_t saadc_enable = ( (SAADC_ENABLE_ENABLE_Enabled << SAADC_ENABLE_ENABLE_Pos)
-                                  && SAADC_ENABLE_ENABLE_Msk );
-
-  const uint32_t saadc_disable = ( (SAADC_ENABLE_ENABLE_Disabled << SAADC_ENABLE_ENABLE_Pos)
-                                   && SAADC_ENABLE_ENABLE_Msk );
-
-  const uint32_t calibrate_trigger = ( (SAADC_TASKS_CALIBRATEOFFSET_TASKS_CALIBRATEOFFSET_Trigger <<
-                                         SAADC_TASKS_CALIBRATEOFFSET_TASKS_CALIBRATEOFFSET_Pos) 
-                                       && SAADC_TASKS_CALIBRATEOFFSET_TASKS_CALIBRATEOFFSET_Msk );
-
-  // Enable the SAADC
-  NRF_SAADC->ENABLE = saadc_enable;
-
-  // Be sure the done flag is cleared, then trigger offset calibration
-  NRF_SAADC->EVENTS_CALIBRATEDONE = calibrate_not_done;
-  NRF_SAADC->TASKS_CALIBRATEOFFSET = calibrate_trigger;
-
-  // Wait for completion
-  while (NRF_SAADC->EVENTS_CALIBRATEDONE != calibrate_done);
-
-  // Clear the done flag  (really shouldn't have to do this both times)
-  NRF_SAADC->EVENTS_CALIBRATEDONE = calibrate_not_done;
-
-  // Disable the SAADC
-  NRF_SAADC->ENABLE = saadc_disable;
-}
-#endif
-
 float averageADC()
 {
   uint32_t raw_sum = 0;
@@ -268,9 +232,7 @@ void ADC_setup() // Set up the ADC for ongoing resistance measurement
 {
   analogReference(analog_reference); 
   analogOversampling(ANALOG_OVERSAMPLE);
-  #ifdef SAADC_TACQ
-    analogSampleTime(ANALOG_SAMPLE_TIME);
-  #endif
+  analogSampleTime(ANALOG_SAMPLE_TIME);
   analogReadResolution(10); // 10 bits for better gear delineation and for battery measurement
   delay(1);                 // Let the ADC settle before any measurements. Only important if changing the reference or possibly resolution
 
@@ -1161,6 +1123,11 @@ void cmd_adccal()
   CONSOLE_PRINT("Doing ADC calibration...");
   analogCalibrateOffset();
   CONSOLE_PRINT("Done.\n\n");
+}
+
+void cmd_temp()
+{
+  CONSOLE_PRINTF("CPU temperature %.1f\n\n", readCPUTemperature());
 }
 
   void cmd_showcal()

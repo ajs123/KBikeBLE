@@ -65,4 +65,5 @@
     - Moved BLE service definitions and flags to BLE_services.h
     - Cleaner struct definition for BLE data
 - V0.18
-  - 
+  - analogSampleTime() and analogCalibrateOffset are now part of the Adafruit library, so removed the corresponding settings in options.h
+  - Added a serial command to read the chip temp (of interest because Nordic recommends ADC offset cal if temp changes > 10C)

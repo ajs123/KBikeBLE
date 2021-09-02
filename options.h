@@ -32,7 +32,7 @@
          resistance used in the power calculation is used to determine the gear.
 */
 
-#define RESISTANCE_FILTER 0          // Resistance used in power calculation and gear determination
+#define RESISTANCE_FILTER 1          // Resistance used in power calculation and gear determination
 #define RESISTANCE_DISPLAY_FILTER 0  // Resistance used in the resistance display
 
 /* Power savings settings. ----------------------------------------------------------------------------
@@ -118,13 +118,5 @@
 */
 #define LOG_PAUSE 2000 // milliseconds
 
-/* The following depend upon functions provided by the Adafruit nRF52 core that are not present
-   in v0.24. If you are using a later version or the github master, leave these #defines. Otherwise, 
-   comment them out.
- */
-#define SAADC_TACQ             // The Adafruit nRF52 core includes analogSampleTime().
-                               // This will reduce variability in resistance measurements but the system will function without it.
-#define SAADC_CALIBRATE_OFFSET // The Adafruit core includes analogCalibrateOffset().
-                               // If not defined here, one will be compiled in from the .ino.
 
 #endif
