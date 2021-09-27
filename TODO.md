@@ -6,8 +6,9 @@
   - Better writeup on calibration
 - Calibration
   - Consider Vdd ref for the pot to maintain cal near battery end of charge
-- Keeping more parameters or options in the filesystem
-  - Gear vs. Res% display?
+- Keeping more parameters or options in the filesystem, such as
+  - Gear vs. Res% display
+  - Filtering
 - Consider flashing the gear/resistance display when the lever is at the top (instead of Keiser's "88").
 - BLE Services
   - If continuing to support FTMS, implement a real model-based calc for speed (mph/kph) as a function of power and cadence. 

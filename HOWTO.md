@@ -15,7 +15,7 @@
     - An RJ9 cable, with the connector cut off of one end, conductors stripped, and connected to the Feather by your preferred means. These cables are made to be mechanically terminated with insulation displacement connectors, so conductors are sometimes hard to strip cleanly.
 
       ![RJ9 cable](docs/Coiled_cable.jpg)
-   - A replacement Keiser cable. [They're available](https://www.sportsmith.com/cord-computer-to-pickup/product/10341?serial=1187), they include nice strain releifs for where they pass through the tubing in the bike along with a coiled section to accommodate the handlebar adjustment, and they have conductors that should be easy to strip. NOTE: The author has not verified the conductor colors on these cables. See the notes at the end for how to do that.
+   - A replacement Keiser cable. [They're available](https://www.sportsmith.com/cord-computer-to-pickup/product/10341?serial=1187), they include nice strain releifs for where they pass through the tubing in the bike along with a coiled section to accommodate the handlebar adjustment, and they have conductors that should be easy to strip. The conductor colors are the same as those on a standard RJ9 cable.
 
      ![Keiser cable](docs/Keiser_cable.jpg)
    - An intact RJ9 cable, and an RJ9 receptacle to provide easily soldered wires for connection to the Feather.
