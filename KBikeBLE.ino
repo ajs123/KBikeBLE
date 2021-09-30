@@ -1067,6 +1067,7 @@ void cmd_res()
   double mean = 0;
   double M2 = 0;
   double variance = 0;
+  double delta = 0;
 
   if (arg[0] != 0)
   {
@@ -1080,10 +1081,10 @@ void cmd_res()
     CONSOLE_PRINTF("Resistance %.1f%%\n", resistance);
     CONSOLE_PRINTF("Keiser gear number %d\n\n", gear);
 
-    double delta = raw_resistance - mean;   // Welford’s algorithm for variance from a sample stream
+    delta = raw_resistance - mean;   // Welford’s algorithm for variance from a sample stream
     mean += delta / n_resistance;
     M2 += delta * (raw_resistance - mean);
-    variance = M2 / n_resistance;
+    //variance = M2 / n_resistance;
     if (console->available())
     {
       while (console->available()) console->read();  //NOTE: bleuart.flush() flushes input; Serial.flush() flushes output
@@ -1095,7 +1096,7 @@ void cmd_res()
   {
     CONSOLE_PRINTF("%d measurements.\n", n_resistance);
     CONSOLE_PRINTF("Average ADC value %.1f\n", (float)sum_resistance / n_resistance);
-    CONSOLE_PRINTF("Estimated mean %.1f; SD %.1f . \n\n", mean, sqrt(variance));
+    CONSOLE_PRINTF("Estimated mean %.1f; SD %.1f . \n\n", mean, sqrt(M2 / n_resistance));
   }
 }
 
@@ -1184,31 +1185,58 @@ void cmd_temp()
 
   void cmd_cal()
   {
+    #define SAMPLES 20
+
     if (AWAITING_CONF())
     {
-      CONSOLE_PRINT("\n\nPlace the calibration tool on the flywheel and rotate the flywheel so that the calibration tool contacts the magnet assembly.\n");
+      CONSOLE_PRINT("\n\nPlace the calibration tool on the flywheel, then rotate the flywheel so that the calibration tool contacts the magnet assembly.\n");
       delay_message(5, 1000);
       //base = analogRead(RESISTANCE_PIN);  // Baseline reading - should increase from here
       CONSOLE_PRINT("\nRotate the magnet assembly by hand so that the magnet settles into the pocket in the calibration tool.");
-      CONSOLE_PRINT(" Do not use the lever!\n");
+      CONSOLE_PRINT("\nDo not use the lever!\n");
+      CONSOLE_PRINT("\nHold while readings are taken...\n");
       delay_message(5, 1000);
-      CONSOLE_PRINT("\n\nHold while readings are taken...\n");
 
       update_timer.stop();  // Suspend updates so that resistance updates don't interfere
-      uint32_t cal_reading = 0;
-      for (uint8_t i = 10; i > 0; i--)
+
+    // TO DO - since we're taking a known number of measurements and have plenty of RAM, this should use a 
+    // straight stdev or some other measure (simple min/max?), rather than the stream-based SD estimate
+
+      uint32_t sum_resistance = 0;
+      uint8_t n_resistance = 0;
+
+      float average;
+      double mean = 0;
+      double M2 = 0;
+      double variance = 0;
+
+      for (uint8_t i=1; i <= SAMPLES; i++)
       {
-        reading = analogRead(RESISTANCE_PIN);
-        CONSOLE_PRINTF("   %d \n", reading);
-        cal_reading += reading;
-        delay(200);
+        raw_resistance = analogRead(RESISTANCE_PIN);
+        sum_resistance += raw_resistance;
+        CONSOLE_PRINTF("   %d\n", raw_resistance);
+
+        n_resistance++;
+        double delta = raw_resistance - mean;   // Welford’s algorithm for variance from a sample stream
+        mean += delta / i;
+        M2 += delta * (raw_resistance - mean);
+        //variance = M2 / i;
+
+        delay(100);
       }
+
       update_timer.start();  // Resume updates. Note: Since update() enables the console to run, we wouldn't
                              // be here if the timer were stopped.
 
-      cal_reading /= 10;
-      CONSOLE_PRINTF("Done. Average was %d.\n", cal_reading);
-      new_offset = cal_reading - CALTOOL_RES/res_factor;
+      average = (float) sum_resistance / SAMPLES;
+      float SD = sqrt(M2 / SAMPLES);
+      
+      CONSOLE_PRINT("Done.");
+      CONSOLE_PRINTF("Average ADC value was %.1f\n", average);
+      CONSOLE_PRINTF("Standard deviation was %.1f\n", SD);
+      if (SD > 1.0F) CONSOLE_PRINT("\n*** For SD > 1, re-doing the calibration is suggested. ***\n");
+
+      new_offset = average - CALTOOL_RES/res_factor;
       CONSOLE_PRINTF("\nThe new offset is %.1f.\n", new_offset);
       CONSOLE_PRINT("\nUse activate to have the bike use these values.");
       CONSOLE_PRINT("If the readings weren't consistent, you can try again.\n\n");

@@ -23,7 +23,9 @@
 			"nrf.h": "c",
 			"wiring_private.h": "c",
 			"nrfx.h": "c",
-			"wiring_constants.h": "c"
+			"wiring_constants.h": "c",
+			"__config": "cpp",
+			"cstring": "cpp"
 		},
 		"telemetry.enableCrashReporter": false
 	}
