@@ -1120,7 +1120,7 @@ void cmd_adcref()
   if (analog_reference == AR_INTERNAL)
   {
     analog_reference = AR_VDD4;
-    res_offset *= (3.6 / 3.3);
+    res_offset *= (3.6 / 3.3);   // This should be the actual VDD
     res_factor /= (3.6 / 3.3);
     CONSOLE_PRINT("ADC reference is now Vdd.\n\n");
   }

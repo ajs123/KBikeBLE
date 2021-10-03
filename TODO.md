@@ -1,11 +1,10 @@
 ## TODO
 - Documentation
   - More comprehensive writeup of calibration
-  - Tutorial how-to-build for less experienced folks
   - Writeup on power consumption
   - Better writeup on calibration
 - Calibration
-  - Consider Vdd ref for the pot to maintain cal near battery end of charge
+  - Think about approaches to a two-point calibration (without a Keiser computer reference?)
 - Keeping more parameters or options in the filesystem, such as
   - Gear vs. Res% display
   - Filtering
