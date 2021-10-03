@@ -66,6 +66,9 @@ uint8_t stepnum = 0;
 // The battery is measured through a divider providing half the voltage
 #define VBAT_MV_PER_LSB 7.03125 // 3600 mV ref / 1024 steps * 2.0 divider ratio
 
+// Vdd is measured without the divider
+#define VDD_MV_PER_LSB VBAT_MV_PER_LSB / 2.0
+
 // Round for positive numbers
 #define roundpos(x) ((x) + 0.5)
 
@@ -794,7 +797,7 @@ void update_battery()
 
   batt_mvolts = analogRead(BATTERY_PIN) * VBAT_MV_PER_LSB;
   #if WATCH_VDD
-    Vdd_mvolts = analogReadVDD() * VBAT_MV_PER_LSB;
+    Vdd_mvolts = analogReadVDD() * VDD_MV_PER_LSB;
   #endif
 
   if (analog_reference != AR_INTERNAL)
