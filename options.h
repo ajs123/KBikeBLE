@@ -32,7 +32,7 @@
          resistance used in the power calculation is used to determine the gear.
 */
 
-#define RESISTANCE_FILTER 0          // Resistance used in power calculation and gear determination
+#define RESISTANCE_FILTER 1          // Resistance used in power calculation and gear determination
 #define RESISTANCE_DISPLAY_FILTER 0  // Resistance used in the resistance display
 
 /* Power savings settings. ----------------------------------------------------------------------------
@@ -76,6 +76,9 @@
 */
 #define HAVE_BATTERY 1 // Non-zero = The system has a battery, so show the battery indicator
 #define BLEBAS       1 // Non-zero = If there's a battery, activate the BLE battery service
+#define WATCH_VDD    1 // Non-zero = Reduced Vdd means low battery. Requires RESISTANCE_TOP to be
+                       // on an analog pin (see bike_interface.h)
+#define VDD_MIN 3250   // Vdd in mV below this will trigger a low battery indicator
 
 /* Low battery indicator - flashes when below this percentage. -----------------------------------------
    This ought to be determined by the level at which the proper ADC reference is lost. For the
@@ -118,13 +121,5 @@
 */
 #define LOG_PAUSE 2000 // milliseconds
 
-/* The following depend upon functions provided by the Adafruit nRF52 core that are not present
-   in v0.24. If you are using a later version or the github master, leave these #defines. Otherwise, 
-   comment them out.
- */
-#define SAADC_TACQ             // The Adafruit nRF52 core includes analogSampleTime().
-                               // This will reduce variability in resistance measurements but the system will function without it.
-#define SAADC_CALIBRATE_OFFSET // The Adafruit core includes analogCalibrateOffset().
-                               // If not defined here, one will be compiled in from the .ino.
 
 #endif

@@ -12,14 +12,11 @@ struct cmd_table_t {
 } ;
 
 // Define the command set
-extern cmdHandler_t cmd_batt, cmd_res, cmd_adcref, cmd_adccal, cmd_showcal, cmd_factor, cmd_offset, cmd_cal, 
+extern cmdHandler_t cmd_batt, cmd_res, cmd_adcref, cmd_adccal, cmd_temp, cmd_showcal, cmd_factor, cmd_offset, cmd_cal, 
                     cmd_activate, cmd_write, cmd_read, cmd_defaults, cmd_comment, cmd_help;
 
 const cmd_table_t PROGMEM cmd_table[] = {
-  {"batt", cmd_batt, "Show battery status."},
-  {"res", cmd_res, "<optional int> Monitor ADC readings - indicated number, or any input to stop."},
-  {"adcref", cmd_adcref, "Toggle the analog reference between default 3.6V and Vdd."},
-  {"adccal", cmd_adccal, "Calibrate the ADC offset."},
+  {"\n", cmd_help, "-- Calibration ----------------------------------"},
   {"showcal", cmd_showcal, "Show the calibration currently in use."},
   {"factor", cmd_factor, "<float> Enter a new cal factor (should not be necessary)."},
   {"offset", cmd_offset, "<float> Enter a new calibration offset (follow with activate)."},
@@ -28,7 +25,14 @@ const cmd_table_t PROGMEM cmd_table[] = {
   {"write", cmd_write, "Write currently active calibration to the calibration file. Requires confirmation."},
   {"read", cmd_read, "Read calibration from the calibration file."},
   {"defaults", cmd_defaults, "Set calibration to hard-coded defaults. Requires confirmation."},
+  {"\n", cmd_help, "-- Utility and debugging -------------------------"},
+  {"batt", cmd_batt, "Show battery status."},
+  {"res", cmd_res, "<optional int> Monitor ADC readings - indicated number, or any input to stop."},
+  {"adcref", cmd_adcref, "Toggle the analog reference between default 3.6V and Vdd."},
+  {"adccal", cmd_adccal, "Calibrate the ADC offset."},
+  {"temp", cmd_temp, "Show the chip temperature (relevant to ADC offset)"},
   {"c", cmd_comment, "Enter a comment (shows in the terminal log."},
+  {"\n", cmd_help, "-- Help ------------------------------------------"},
   {"help", cmd_help, "This list."}
 } ;
 

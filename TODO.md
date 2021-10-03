@@ -1,16 +1,17 @@
 ## TODO
 - Documentation
   - More comprehensive writeup of calibration
-  - Tutorial how-to-build for less experienced folks
   - Writeup on power consumption
   - Better writeup on calibration
 - Calibration
-  - Consider using a different reference, e.g., Vdd ref for the pot to maintain cal near battery end of charge
-- Keeping more parameters or options in the filesystem
+  - Think about approaches to a two-point calibration (without a Keiser computer reference?)
+- Keeping more parameters or options in the filesystem, such as
   - Gear vs. Res% display
+  - Filtering
+- Consider flashing the gear/resistance display when the lever is at the top (instead of Keiser's "88").
 - BLE Services
   - If continuing to support FTMS, implement a real model-based calc for speed (mph/kph) as a function of power and cadence. 
-- Improve the display: larger size with more data
+- Improve the display: larger size with more data?
   - Things maybe to add
     - Accumulated  data
       - Miles - requires a model
@@ -21,10 +22,10 @@
 - More comprehensive code cleanup
   - Split code across multiple source files
   - Clean up code in connect callbacks
+  - Code to include a battery or not is a bit clunky, especially in display_numbers()
   - Review for functions that should be inline
-  - C++ style for C-style #defines and macros where appropriate
-- Option to power down the crank sensor, for those who plan to expose a reset or wakeup switch on the packaged computer.
-- Option to skip battery code, for those who have none
+  - C++ style static consts and inline functions instead of C-style #defines and macros where appropriate
+- Option to power down the crank sensor (total power-down), for those who plan to expose a reset or wakeup switch on the packaged computer. This might not provide any meaningful advantage unless there's also a way to power down the display.
 
 ONE DAY?
 - Servo on the resistance for full FTMS function!

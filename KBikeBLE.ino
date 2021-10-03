@@ -66,6 +66,9 @@ uint8_t stepnum = 0;
 // The battery is measured through a divider providing half the voltage
 #define VBAT_MV_PER_LSB 7.03125 // 3600 mV ref / 1024 steps * 2.0 divider ratio
 
+// Vdd is measured without the divider
+#define VDD_MV_PER_LSB VBAT_MV_PER_LSB / 2.0
+
 // Round for positive numbers
 #define roundpos(x) ((x) + 0.5)
 
@@ -183,7 +186,7 @@ void display_numbers()
 
     right_just(cad, 10, 43, 18);
 
-    if ( !(lever_state & 0b00000001) )  // Lever not presently near the top
+/*     if ( !(lever_state & 0b00000001) )  // Lever not presently near the top
     {
       right_just(rg, 10, 85, 18);
     }
@@ -192,7 +195,10 @@ void display_numbers()
       display.setCursor(10, 85);
       display.print("<->");
     }
+ */
 
+  right_just(rg, 10, 85, 18);
+  
     right_just(pwr, 10, 127, 18);
 
     display.sendBuffer();
@@ -212,45 +218,6 @@ void display_numbers()
 
 eAnalogReference analog_reference = AR_INTERNAL;
 
-#ifndef SAADC_CALIBRATE_OFFSET
-void analogCalibrateOffset() // Periodic calibration of the ADC
-{
-  const uint32_t calibrate_done = ( (SAADC_EVENTS_CALIBRATEDONE_EVENTS_CALIBRATEDONE_Generated << 
-                                      SAADC_EVENTS_CALIBRATEDONE_EVENTS_CALIBRATEDONE_Pos )
-                                    && SAADC_EVENTS_CH_LIMITH_LIMITH_Msk );
-  
-  const uint32_t calibrate_not_done = ( (SAADC_EVENTS_CALIBRATEDONE_EVENTS_CALIBRATEDONE_NotGenerated << 
-                                          SAADC_EVENTS_CALIBRATEDONE_EVENTS_CALIBRATEDONE_Pos )
-                                        && SAADC_EVENTS_CH_LIMITH_LIMITH_Msk );
-  
-  const uint32_t saadc_enable = ( (SAADC_ENABLE_ENABLE_Enabled << SAADC_ENABLE_ENABLE_Pos)
-                                  && SAADC_ENABLE_ENABLE_Msk );
-
-  const uint32_t saadc_disable = ( (SAADC_ENABLE_ENABLE_Disabled << SAADC_ENABLE_ENABLE_Pos)
-                                   && SAADC_ENABLE_ENABLE_Msk );
-
-  const uint32_t calibrate_trigger = ( (SAADC_TASKS_CALIBRATEOFFSET_TASKS_CALIBRATEOFFSET_Trigger <<
-                                         SAADC_TASKS_CALIBRATEOFFSET_TASKS_CALIBRATEOFFSET_Pos) 
-                                       && SAADC_TASKS_CALIBRATEOFFSET_TASKS_CALIBRATEOFFSET_Msk );
-
-  // Enable the SAADC
-  NRF_SAADC->ENABLE = saadc_enable;
-
-  // Be sure the done flag is cleared, then trigger offset calibration
-  NRF_SAADC->EVENTS_CALIBRATEDONE = calibrate_not_done;
-  NRF_SAADC->TASKS_CALIBRATEOFFSET = calibrate_trigger;
-
-  // Wait for completion
-  while (NRF_SAADC->EVENTS_CALIBRATEDONE != calibrate_done);
-
-  // Clear the done flag  (really shouldn't have to do this both times)
-  NRF_SAADC->EVENTS_CALIBRATEDONE = calibrate_not_done;
-
-  // Disable the SAADC
-  NRF_SAADC->ENABLE = saadc_disable;
-}
-#endif
-
 float averageADC()
 {
   uint32_t raw_sum = 0;
@@ -268,9 +235,7 @@ void ADC_setup() // Set up the ADC for ongoing resistance measurement
 {
   analogReference(analog_reference); 
   analogOversampling(ANALOG_OVERSAMPLE);
-  #ifdef SAADC_TACQ
-    analogSampleTime(ANALOG_SAMPLE_TIME);
-  #endif
+  analogSampleTime(ANALOG_SAMPLE_TIME);
   analogReadResolution(10); // 10 bits for better gear delineation and for battery measurement
   delay(1);                 // Let the ADC settle before any measurements. Only important if changing the reference or possibly resolution
 
@@ -829,7 +794,12 @@ void update_battery()
     analogReference(AR_INTERNAL);
     delay(1);
   }
+
   batt_mvolts = analogRead(BATTERY_PIN) * VBAT_MV_PER_LSB;
+  #if WATCH_VDD
+    Vdd_mvolts = analogReadVDD() * VDD_MV_PER_LSB;
+  #endif
+
   if (analog_reference != AR_INTERNAL)
   {
     analogReference(analog_reference);
@@ -842,8 +812,12 @@ void update_battery()
     batt_pct = (batt_mvolts - 3300) * 0.03333;                    //   Last 10% - linear from 3.3 - 3.6 V
   else 
     batt_pct = min(10.0 + ((batt_mvolts - 3600) * 0.15F), 100.0); //   10-100% - linear from 3.6 - 4.2 V
+  #if WATCH_VDD
+    batt_low = (batt_pct < BATT_LOW) || (Vdd_mvolts < VDD_MIN);
+  # else
+    batt_low = batt_pct < BATT_LOW;
+  #endif
 
-  batt_low = batt_pct < BATT_LOW;
 #ifdef BLEBAS
   blebas.write(batt_pct);
 #endif
@@ -1089,8 +1063,11 @@ char pbuffer[PBLEN];
 void cmd_batt()
 {
   #if HAVE_BATTERY
-    CONSOLE_PRINTF("\nBattery voltage %.2f \n", batt_mvolts/1000);//batt_mvolts*1000);
+    CONSOLE_PRINTF("\nBattery voltage %.2f \n", batt_mvolts/1000);
     CONSOLE_PRINTF(" %d%% charge\n\n", batt_pct);
+    #if WATCH_VDD
+      CONSOLE_PRINTF("Vdd %.2f \n\n", Vdd_mvolts/1000);
+    #endif
   #else
     CONSOLE_PRINT("\nNo battery.\n\n");
   #endif
@@ -1105,6 +1082,7 @@ void cmd_res()
   double mean = 0;
   double M2 = 0;
   double variance = 0;
+  double delta = 0;
 
   if (arg[0] != 0)
   {
@@ -1118,10 +1096,10 @@ void cmd_res()
     CONSOLE_PRINTF("Resistance %.1f%%\n", resistance);
     CONSOLE_PRINTF("Keiser gear number %d\n\n", gear);
 
-    double delta = raw_resistance - mean;   // Welford’s algorithm for variance from a sample stream
+    delta = raw_resistance - mean;   // Welford’s algorithm for variance from a sample stream
     mean += delta / n_resistance;
     M2 += delta * (raw_resistance - mean);
-    variance = M2 / n_resistance;
+    //variance = M2 / n_resistance;
     if (console->available())
     {
       while (console->available()) console->read();  //NOTE: bleuart.flush() flushes input; Serial.flush() flushes output
@@ -1133,7 +1111,7 @@ void cmd_res()
   {
     CONSOLE_PRINTF("%d measurements.\n", n_resistance);
     CONSOLE_PRINTF("Average ADC value %.1f\n", (float)sum_resistance / n_resistance);
-    CONSOLE_PRINTF("Estimated mean %.1f; SD %.1f . \n\n", mean, sqrt(variance));
+    CONSOLE_PRINTF("Estimated mean %.1f; SD %.1f . \n\n", mean, sqrt(M2 / n_resistance));
   }
 }
 
@@ -1142,7 +1120,7 @@ void cmd_adcref()
   if (analog_reference == AR_INTERNAL)
   {
     analog_reference = AR_VDD4;
-    res_offset *= (3.6 / 3.3);
+    res_offset *= (3.6 / 3.3);   // This should be the actual VDD
     res_factor /= (3.6 / 3.3);
     CONSOLE_PRINT("ADC reference is now Vdd.\n\n");
   }
@@ -1161,6 +1139,11 @@ void cmd_adccal()
   CONSOLE_PRINT("Doing ADC calibration...");
   analogCalibrateOffset();
   CONSOLE_PRINT("Done.\n\n");
+}
+
+void cmd_temp()
+{
+  CONSOLE_PRINTF("CPU temperature %.1f\n\n", readCPUTemperature());
 }
 
   void cmd_showcal()
@@ -1217,31 +1200,59 @@ void cmd_adccal()
 
   void cmd_cal()
   {
+    #define SAMPLES 20
+    #define BETWEEN_SAMPLES 100
+
     if (AWAITING_CONF())
     {
-      CONSOLE_PRINT("\n\nPlace the calibration tool on the flywheel and rotate the flywheel so that the calibration tool contacts the magnet assembly.\n");
+      CONSOLE_PRINT("\n\nPlace the calibration tool on the flywheel, then rotate the flywheel so that the calibration tool contacts the magnet assembly.\n");
       delay_message(5, 1000);
       //base = analogRead(RESISTANCE_PIN);  // Baseline reading - should increase from here
       CONSOLE_PRINT("\nRotate the magnet assembly by hand so that the magnet settles into the pocket in the calibration tool.");
-      CONSOLE_PRINT(" Do not use the lever!\n");
+      CONSOLE_PRINT("\nDo not use the lever!\n");
+      CONSOLE_PRINT("\nHold while readings are taken...\n");
       delay_message(5, 1000);
-      CONSOLE_PRINT("\n\nHold while readings are taken...\n");
 
       update_timer.stop();  // Suspend updates so that resistance updates don't interfere
-      uint32_t cal_reading = 0;
-      for (uint8_t i = 10; i > 0; i--)
+
+    // TO DO - since we're taking a known number of measurements and have plenty of RAM, this should use a 
+    // straight stdev or some other measure (simple min/max?), rather than the stream-based SD estimate
+
+      uint32_t sum_resistance = 0;
+      uint8_t n_resistance = 0;
+
+      float average;
+      double mean = 0;
+      double M2 = 0;
+      double variance = 0;
+
+      for (uint8_t i=1; i <= SAMPLES; i++)
       {
-        reading = analogRead(RESISTANCE_PIN);
-        CONSOLE_PRINTF("   %d \n", reading);
-        cal_reading += reading;
-        delay(200);
+        raw_resistance = analogRead(RESISTANCE_PIN);
+        sum_resistance += raw_resistance;
+        CONSOLE_PRINTF("   %d\n", raw_resistance);
+
+        n_resistance++;
+        double delta = raw_resistance - mean;   // Welford’s algorithm for variance from a sample stream
+        mean += delta / i;
+        M2 += delta * (raw_resistance - mean);
+        //variance = M2 / i;
+
+        delay(BETWEEN_SAMPLES);
       }
+
       update_timer.start();  // Resume updates. Note: Since update() enables the console to run, we wouldn't
                              // be here if the timer were stopped.
 
-      cal_reading /= 10;
-      CONSOLE_PRINTF("Done. Average was %d.\n", cal_reading);
-      new_offset = cal_reading - CALTOOL_RES/res_factor;
+      average = (float) sum_resistance / SAMPLES;
+      float SD = sqrt(M2 / SAMPLES);
+      
+      CONSOLE_PRINT("Done.");
+      CONSOLE_PRINTF("Average ADC value was %.1f\n", average);
+      CONSOLE_PRINTF("Standard deviation was %.1f\n", SD);
+      if (SD > 1.0F) CONSOLE_PRINT("\n*** For SD > 1, re-doing the calibration is suggested. ***\n");
+
+      new_offset = average - CALTOOL_RES/res_factor;
       CONSOLE_PRINTF("\nThe new offset is %.1f.\n", new_offset);
       CONSOLE_PRINT("\nUse activate to have the bike use these values.");
       CONSOLE_PRINT("If the readings weren't consistent, you can try again.\n\n");
