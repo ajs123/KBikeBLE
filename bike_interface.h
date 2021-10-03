@@ -27,4 +27,4 @@
 #define BATTERY_PIN A6
 
 #define ANALOG_SAMPLE_TIME 20 // The SAADC sampling time in us. 10 us is probably enough for reading
-                              // from the 20K resistance sense potentiometer
+                              // from the 10K resistance sense potentiometer

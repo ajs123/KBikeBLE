@@ -1,5 +1,5 @@
 ## Build with layered acrylic case
-This build is done with seven layers of 3 mm clear acrylic. Design/drawing was done in Fusion 360 with cleanup of the DXF files in VersaCAD. The parts were cut by [SendCutSend](sendcutsend.com).
+This build is done with seven layers of 3 mm clear acrylic. Design/drawing was done in Fusion 360 with cleanup of the DXF files in VersaCAD. The parts were cut by [SendCutSend](sendcutsend.com). What's below is focused on assembly in the case. It may be helpful to read the more general [HOWTO](HOWTO.md) first.
 
 ### Parts
 
@@ -98,6 +98,10 @@ From bottom-right, the layers are
 
     These should be stable as you wiggle the wires. Being sure that you know which *internal* wire color is which, you can now disconnect from the Keiser cable.
 
+1. Optional: Remove the NeoPixel from the Feather
+
+   The NeoPixel display (next to the black plastic programming connector) uses 0.5 mA of idle current when off. When the user walks away from the bike and allows the computer to idle, the whole rest of the computer - Feather plus display - uses about 1 mA. So removing the NeoPixel will extend battery life a lot. A suitably small side cutter, applied across the diagonal, can be effective to pop it off or to chip away at it. Of course, you have to be very careful about adjacent components, and there's no guarantee that you won't ruin the Feather.
+
 1. Wire the display.
 
    I2C busses require pullup resistors to Vcc on the clock and data lines. Neither the display used in the prototype, nor the Feather, provide them. This is common, since recommended pullups depend upon the number and nature of the devices on the bus. The first prototype used 10K and worked fine. Here, we're using the more commonly recommended 4.7K. 
@@ -117,7 +121,6 @@ From bottom-right, the layers are
     Add the additional acrylic layers - all but the mask and cover, and mount the display by sticking it to the battery. An option is to leave the display loose for now or use something to tack it in place temporarily, then adhere it to the back of the mask later on.
 
     ![Mounted components](docs/Mounted_components.jpeg)
-    ^^REPLACE WITH ONE HAVING ALL OF THE LAYERS^^
 
 1. Trim and solder wires to the Feather.
 
@@ -129,11 +132,15 @@ From bottom-right, the layers are
 
     For the shared ground connection, you can join both to a short length of solid wire, then solder that to the ground on the Feather.
 
-1. Configure and upload code and test.
+    In the photo below, you can see the 2.2K resistor peeking out from the heat shrink on the yellow conductor. You can also see where I overheated the green (ground) conductor on the display and placed some heat shrink on the yellow wire to ensure the integrity of that conductor.
 
-    Follow the instructions in the HOWTO to configure the code. It's a matter of choosing some options (or keeping the defaults), and, importantly, **being sure that pin selections in bike_interface.h match your wiring**.
+    ![Wiring](docs/Wired.jpeg)
 
-    Connect to USB and upload the code to the Feather. Once uploaded, you should see the scrolling KBikeBLE startup log, then the display showing zero RPM, Gear 1 (probably) and zero Power.
+1. Configure, upload code, and test.
+
+    Follow the instructions in the HOWTO to configure the code. It's a matter of choosing some options (or keeping the defaults), and, importantly, **being sure that pin selections in bike_interface.h match your wiring**. The HOWTO also has more detail on what to expect the first time the code is run.
+
+    Connect to USB and upload the code to the Feather. Once uploaded and running, you should see the scrolling KBikeBLE startup log, then the display showing zero RPM, Gear 1 (probably) and zero Power.
 
     Disconnect from USB. You can put the mask and top cover on at this point, or you can keep the case open for now. Either way, it's recommended that you install screws in at least two corners of the case to keep the layers together. 
 
@@ -141,24 +148,43 @@ From bottom-right, the layers are
 
     Reach in and carefully plug the battery into the LiPoly connector. If there's any charge on the battery (typically, there is) you should see the startup log again, then the display.
 
-    Now, moving the gearshift lever should cause the Gear display to change. **It's unlikey to be correct, or even close, since the computer's not calibrated to the bike.**
+    Moving the gearshift lever should cause the Gear display to change. **It's unlikey to be correct, or even close, since the computer's not yet calibrated to the bike.**
 
     Turning the pedals should result in a cadence (RPM) showing, and the power being more than zero. Congratulations!
 
+1. Completing the case.
+
+   If you haven't done so already, place the additional layers of the case. Layers 1 through four are tied together with stiff on either side of the USB opening. Insert the wire
+
+   ![Reinforcing wire](docs/Reinforcing_wire.jpeg)
+
+   then trim to length and push it in all the way.
+
+   Then add layer 5 which helps to locate the display, the mask layer, and the top cover, and secure with screws at the corner.
+
 1. Mounting.
 
-    Place the mask and cover if you haven't done so already. 
-
-    Remove the black plastic piece that covers the top of the cast metal mount. 
+    Remove the black plastic piece that covers the top of the cast metal mount. You may need to squeeze the little tabs to release it. They break easily, but also aren't essential to keeping the cover in place, as it ends up being trapped behind the mounted computer.
 
     Line the three holes on the mount up with the holes on the bottom plate. Between the rubber strain relief that protrudes from the bike frame and the connector on the back of the computer, there is far more wire than you need.  
 
-    Carefully "fold" the wire back on itself, approximately in thirds. It will fit. Replace the black plastic cover, and secure the computer to the bike with the three M3.0 screws.
-
+    Carefully "fold" the wire back on itself, approximately in thirds. It will fit. 
+    
     *Alternative:* If desired, you can shorten the cable between the strain relief and the computer, either by cutting and splicing, or by cutting and installing a new IDC connector. 
+
+    ![Folded wire](docs/Folded_wire.jpeg)
+
+    Replace the black plastic cover, and secure the computer to the bike with the three M3.0 screws.
+
+    ![Mounted](docs/Mounted.jpeg)
 
 You're finished with your build and install.
 
 ### Calibration
 
-You're almost ready to go. Now see **Calibrating to your bike** in the HOWTO.
+You're almost ready to go. Now see **Calibrating to your bike** in the [HOWTO](HOWTO.md). In brief, it's
+
+1. Connect to the bike using the Arduino serial monitor (USB) or Adafruit Bluefruit Connect app.
+1. Have your Keiser cal tool on hand, and enter *calibrate*. Confirm with *y* and follow the prompts.
+1. Enter *activate* and confirm with *y* to have the bike use the new parameters.
+1. Once satisfied, enter *write* and confirm with *y* to save the parameters in nonvolatile memory.

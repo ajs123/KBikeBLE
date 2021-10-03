@@ -791,7 +791,12 @@ void update_battery()
     analogReference(AR_INTERNAL);
     delay(1);
   }
+
   batt_mvolts = analogRead(BATTERY_PIN) * VBAT_MV_PER_LSB;
+  #if WATCH_VDD
+    Vdd_mvolts = analogReadVDD() * VBAT_MV_PER_LSB;
+  #endif
+
   if (analog_reference != AR_INTERNAL)
   {
     analogReference(analog_reference);
@@ -804,8 +809,12 @@ void update_battery()
     batt_pct = (batt_mvolts - 3300) * 0.03333;                    //   Last 10% - linear from 3.3 - 3.6 V
   else 
     batt_pct = min(10.0 + ((batt_mvolts - 3600) * 0.15F), 100.0); //   10-100% - linear from 3.6 - 4.2 V
+  #if WATCH_VDD
+    batt_low = (batt_pct < BATT_LOW) || (Vdd_mvolts < VDD_MIN);
+  # else
+    batt_low = batt_pct < BATT_LOW;
+  #endif
 
-  batt_low = batt_pct < BATT_LOW;
 #ifdef BLEBAS
   blebas.write(batt_pct);
 #endif
@@ -1051,8 +1060,11 @@ char pbuffer[PBLEN];
 void cmd_batt()
 {
   #if HAVE_BATTERY
-    CONSOLE_PRINTF("\nBattery voltage %.2f \n", batt_mvolts/1000);//batt_mvolts*1000);
+    CONSOLE_PRINTF("\nBattery voltage %.2f \n", batt_mvolts/1000);
     CONSOLE_PRINTF(" %d%% charge\n\n", batt_pct);
+    #if WATCH_VDD
+      CONSOLE_PRINTF("Vdd %.2f \n\n", Vdd_mvolts/1000);
+    #endif
   #else
     CONSOLE_PRINT("\nNo battery.\n\n");
   #endif
@@ -1186,6 +1198,7 @@ void cmd_temp()
   void cmd_cal()
   {
     #define SAMPLES 20
+    #define BETWEEN_SAMPLES 100
 
     if (AWAITING_CONF())
     {
@@ -1222,7 +1235,7 @@ void cmd_temp()
         M2 += delta * (raw_resistance - mean);
         //variance = M2 / i;
 
-        delay(100);
+        delay(BETWEEN_SAMPLES);
       }
 
       update_timer.start();  // Resume updates. Note: Since update() enables the console to run, we wouldn't

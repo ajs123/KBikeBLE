@@ -76,6 +76,9 @@
 */
 #define HAVE_BATTERY 1 // Non-zero = The system has a battery, so show the battery indicator
 #define BLEBAS       1 // Non-zero = If there's a battery, activate the BLE battery service
+#define WATCH_VDD    1 // Non-zero = Reduced Vdd means low battery. Requires RESISTANCE_TOP to be
+                       // on an analog pin (see bike_interface.h)
+#define VDD_MIN 3250   // Vdd in mV below this will trigger a low battery indicator
 
 /* Low battery indicator - flashes when below this percentage. -----------------------------------------
    This ought to be determined by the level at which the proper ADC reference is lost. For the

@@ -1,4 +1,7 @@
 # How to build, install, and operate
+
+This provides an overview for builders, along with instructions for setup, calibration, etc. For a detailed example build in a case that mounts seamlessly to the bike, see the [Build document](Build.md).
+
 ## Parts needed
 1. [Adafruit Feather nRF52840 Express](https://www.adafruit.com/product/4062)
 
@@ -49,7 +52,7 @@
 
   \* Colors refer to the standard RJ9 conductors on most cables
   
-  \** The resistance magnet position can use any analog input (A0-A5) and the sensor excitation and crank switch can use any GPIO (5-13 or A0-A5). If changing any of these, edit bike_interface.h accordingly
+  \** The resistance magnet position can use any analog input (A0-A5) and the sensor excitation and crank switch can use any GPIO (5-13 or A0-A5). If changing any of these, edit bike_interface.h accordingly.
 
   \*** Include a 2.2K Ohm resistor between the green wire and the pin on the Feather.
 
@@ -100,7 +103,7 @@ Look over options.h. The file includes a number of options, with some guidance f
 
 Pay attention to the settings at the very bottom of options.h. The software makes use of some functions not included in the Adafruit core for the Feather, as of version 0.24. You must leave the #defines commented out or un-commented, according to whether the indicated functions are included in the release that you're using.
 
-## Download and first run
+## Upload and first run
 
 Before you use KBikeBLE for the first time, you may want to install the Adafruit Bluefruit Connect app on your phone, tablet or computer. You can use it to test BLE connections, and in the calibration steps below you can use its UART function instead of the Arduino serial monitor. Nordic's nRF Connect works well for testing BLE but doesn't provide the same UART functions. Now use the Arduino IDE to download the KBikeBLE to the Feather.
 
