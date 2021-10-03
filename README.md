@@ -10,7 +10,7 @@ Replaces the computer on a Keiser M3 spin bike and adds Bluetooth Low Energy (BL
   * CPS (typical for power meters) - power and cadence
   * FTMS (typical for ergometers and trainers) - power, resistance setting, and cadence (though no apps I have tried to date read the resistance, and all I have tried want to set the resistance (resistance servo on the "some day" list!))
   * Battery level
-  * Serial communication, which can be used when calibrating the computer to an individual bike.
+* Calibration to an individual bike using a procedure similar the Keiser's, using the Keiser calibration tool.
 * If used about an hour per day, runs for a month or two on an 1800 mAHr LiPo battery
 
 ### Computer hardware
@@ -26,11 +26,11 @@ Connection to the bike is through the RJ9 (phone handset) connector used for the
 Any replacement RJ9 cord provides access, or you could tap into the stock Keiser connector at the handlebar end. Presently, retaining the ability to use the Keiser computer is recommended, as it might be helpful in verifying calibration. Presently, you can't leave both computers connected at the same time.
 
 ### Dependencies
-* Adafruit nRF52 Arduino core https://github.com/adafruit/Adafruit_nRF52_Arduino. The code makes some use of FreeRTOS and the Nordic nrf libraries that are included in the Adafruit core for the board.
-* U8G2 display https://github.com/olikraus/u8g2
+* Adafruit nRF52 Arduino core https://github.com/adafruit/Adafruit_nRF52_Arduino, version 1.0 or greater. The code makes some use of FreeRTOS and the Nordic nrf libraries that are included in the Adafruit core for the board. 
+* U8G2 display library https://github.com/olikraus/u8g2
 
 ### Calibration
-Calibrations were obtained by comparison with a Keiser computer, V4.06 software. A published Keiser chart showing power vs. resistance magnet position, along with data from the Keiser computer on power vs. speed at fixed resistance, are used to provide the power estimates. The software provides for calibration using Keiser's calibration tool along with a procedure similar to Keiser's, with the added assistance of prompting via the Bluetooth connection or the serial port. Calibration is reatined in flash memory, so this is a one-time process each time the computer is installed on a new bike or the bike's magnetic brake assembly is serviced.
+The software provides for calibration using Keiser's calibration tool along with a procedure similar to Keiser's, with the added assistance of prompting via the Bluetooth connection or the serial port. Calibration is reatined in flash memory, so this is a one-time process each time the computer is installed on a new bike or the bike's magnetic brake assembly is serviced. Calibrations were obtained by comparison with a Keiser computer, V4.06 software. A published Keiser chart showing power vs. resistance magnet position, along with data from a Keiser computer on power vs. speed at fixed resistance, are used to provide the power estimates. 
 
 See https://user-images.githubusercontent.com/68538658/113517760-e75ac880-9579-11eb-968e-854193421594.jpeg for info from Keiser on gear number vs. magnet assembly position, as well as power vs. magnet position at 90 RPM. Calibration replicates the scale on that figure, with 0 to 100% representing the full extent of the X axis. The Gear display can be the unevenly spaced gears shown on the figure, or a more uniform but very similar set. Users may prefer one over the other, or prefer the simple 0-100% display that's provided as well.
 

@@ -35,6 +35,9 @@ bool suspended;        // Set to true when suspending the main loop
   float batt_mvolts;  // Battery voltage
   uint8_t batt_pct;   // Battery percentage charge
   bool batt_low;      // Battery low
+  #if WATCH_VDD
+    float Vdd_mvolts; // Vdd reading (from RESISTANCE_TOP pin)
+  #endif
 #endif
 
 #define TICK_INTERVAL 500 
