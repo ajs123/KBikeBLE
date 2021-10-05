@@ -1,6 +1,6 @@
 /* Bluetooth console for Keiser M3 **********************************
 *********************************************************************/
-#define VERSION "1.0"
+#define VERSION "1.1"
 
 #include <Arduino.h>
 #include <bluefruit.h> // nrf52 built-in bluetooth
@@ -63,10 +63,11 @@ uint8_t stepnum = 0;
  * Miscellany
  ************************************************************************/
 
-// The battery is measured through a divider providing half the voltage
+// The battery is measured through a divider providing half the voltage,
+// using the 3.6V reference.
 #define VBAT_MV_PER_LSB 7.03125 // 3600 mV ref / 1024 steps * 2.0 divider ratio
 
-// Vdd is measured without the divider
+// Vdd is measured without a divider.
 #define VDD_MV_PER_LSB VBAT_MV_PER_LSB / 2.0
 
 // Round for positive numbers
@@ -216,7 +217,9 @@ void display_numbers()
   Analog input processing - resistance magnet position and battery
 * ********************************************************************************/
 
-eAnalogReference analog_reference = AR_INTERNAL;
+// Resistance sensing is potentiometric, so Vdd is the natural reference.
+// This makes the scale factor independent of the individual Vdd regulator
+eAnalogReference analog_reference = AR_VDD4;  
 
 float averageADC()
 {
@@ -245,6 +248,23 @@ void ADC_setup() // Set up the ADC for ongoing resistance measurement
   analogCalibrateOffset();
   displog.printf("ADC %.1f\n", averageADC());
   delay(LOG_PAUSE);
+}
+
+float readVdd()
+{
+  float Vdd;
+  if (analog_reference == AR_VDD4) 
+  {
+    analogReference(AR_INTERNAL);
+    delay(1);
+    Vdd = analogReadVDD() * VDD_MV_PER_LSB / 1000.0F;
+    analogReference(AR_VDD4);
+    delay(1);
+  }
+  else {
+    Vdd = analogReadVDD() * VDD_MV_PER_LSB / 1000.0F;
+  }
+  return Vdd;
 }
 
 /*****************************************************************************************************
@@ -773,9 +793,6 @@ void lever_check() // Moving the gear lever to the top switches the resistance/g
 void update_resistance()
 {
   raw_resistance = analogRead(RESISTANCE_PIN); // ADC set to oversample
-  //raw_pot_top = analogRead(RESISTANCE_TOP);
-  //raw_pot_wiper = analogRead(RESISTANCE_PIN);
-  //raw_resistance = raw_pot_wiper * ( ( (3300 * 1024) + 1800) / 3600 )  / raw_pot_top;  // (3.3 V Vdd)/(3.6 V Vref)*(ADC counts), rounded
   inst_resistance = max((raw_resistance - res_offset) * res_factor, 0);
   resistance = (RESISTANCE_FILTER * resistance + 2 * inst_resistance) / (RESISTANCE_FILTER + 2);
   gear = gear_lookup(resistance);
@@ -1077,7 +1094,7 @@ void cmd_res()
 {
   uint32_t sum_resistance = 0;
   uint8_t n_resistance = 0;
-  uint8_t max_n = 20; // Default number of samples
+  uint8_t max_n = 10; // Default number of samples
 
   double mean = 0;
   double M2 = 0;
@@ -1088,6 +1105,9 @@ void cmd_res()
   {
     max_n = min(0xFF, max(atoi(arg), 1));
   }
+
+  CONSOLE_PRINTF("%d measurements (any input to stop)...\n\n", max_n);
+
   for (uint8_t i = max_n; i > 0; i--)
   {
     sum_resistance += raw_resistance;
@@ -1117,19 +1137,22 @@ void cmd_res()
 
 void cmd_adcref()
 {
+  float Vdd = readVdd();
+
   if (analog_reference == AR_INTERNAL)
   {
     analog_reference = AR_VDD4;
-    res_offset *= (3.6 / 3.3);   // This should be the actual VDD
-    res_factor /= (3.6 / 3.3);
+    res_offset *= (3.6 / Vdd);   // This should be the actual VDD
+    res_factor /= (3.6 / Vdd);
     CONSOLE_PRINT("ADC reference is now Vdd.\n\n");
   }
   else
   {
     analog_reference = AR_INTERNAL;
-    res_offset *= (3.3 / 3.6);
-    res_factor /= (3.3 / 3.6);
-    CONSOLE_PRINT("ADC reference is now internal 3.6V.\n\n");
+    res_offset *= (Vdd / 3.6);
+    res_factor /= (Vdd / 3.6);
+    CONSOLE_PRINT("ADC reference is now internal 3.6V.\n");
+    CONSOLE_PRINT("This will remain until changed or the system is reset.\n\n");
   }
   analogReference(analog_reference);
 }
@@ -1353,7 +1376,6 @@ void process_cmd()
           CONSOLE_PRINT("Canceled.\n");
           awaiting_conf = AWAITING_NONE;
       }
-      //awaiting_conf = AWAITING_NONE;   // Each handler needs to reset awaiting_conf
       return;
   }
   

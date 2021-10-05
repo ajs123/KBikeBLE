@@ -73,3 +73,6 @@
     - Adjacent pins, ordered to match the termination of the cable in the bike, supporting use of a ribbon cable in wiring.
     - Use of an analog input pin for RESISTANCE_TOP enables measurement of Vdd
   - Option to check for sag in Vdd and trigger the low battery indicator accordingly
+- V1.1
+  - Changed to Vdd as the ADC reference. This makes the resistance reading truly potentiometric (independent of Vdd), so the resistance scale factor should be truly constant from bike to bike as long as the resistance in cables and connections is insignificant compared with the 10K potentiometer value.
+  

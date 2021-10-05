@@ -1,0 +1,96 @@
+c edge 13/14
+edge 13/14
+
+res 10
+Raw ADC value 331
+Resistance 38.5%
+Keiser gear number 13
+
+Raw ADC value 331
+Resistance 38.5%
+Keiser gear number 13
+
+Raw ADC value 330
+Resistance 38.4%
+Keiser gear number 13
+
+Raw ADC value 332
+Resistance 38.6%
+Keiser gear number 13
+
+Raw ADC value 330
+Resistance 38.4%
+Keiser gear number 13
+
+Raw ADC value 330
+Resistance 38.3%
+Keiser gear number 13
+
+Raw ADC value 331
+Resistance 38.5%
+Keiser gear number 13
+
+Raw ADC value 332
+Resistance 38.6%
+Keiser gear number 13
+
+Raw ADC value 330
+Resistance 38.4%
+Keiser gear number 13
+
+Raw ADC value 331
+Resistance 38.5%
+Keiser gear number 13
+
+10 measurements.
+Average ADC value 330.8
+Estimated mean 330.9; SD 0.7 . 
+
+c cal tool
+cal tool
+
+res 10
+Raw ADC value 342
+Resistance 40.8%
+Keiser gear number 14
+
+Raw ADC value 342
+Resistance 40.9%
+Keiser gear number 14
+
+Raw ADC value 342
+Resistance 40.9%
+Keiser gear number 14
+
+Raw ADC value 342
+Resistance 40.9%
+Keiser gear number 14
+
+Raw ADC value 342
+Resistance 40.9%
+Keiser gear number 14
+
+Raw ADC value 342
+Resistance 40.9%
+Keiser gear number 14
+
+Raw ADC value 342
+Resistance 40.9%
+Keiser gear number 14
+
+Raw ADC value 342
+Resistance 40.9%
+Keiser gear number 14
+
+Raw ADC value 343
+Resistance 41.0%
+Keiser gear number 14
+
+Raw ADC value 342
+Resistance 40.9%
+Keiser gear number 14
+
+10 measurements.
+Average ADC value 342.1
+Estimated mean 342.2; SD 0.4 . 
+
