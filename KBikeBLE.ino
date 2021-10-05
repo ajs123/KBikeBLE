@@ -63,10 +63,11 @@ uint8_t stepnum = 0;
  * Miscellany
  ************************************************************************/
 
-// The battery is measured through a divider providing half the voltage
+// The battery is measured through a divider providing half the voltage,
+// using the 3.6V reference.
 #define VBAT_MV_PER_LSB 7.03125 // 3600 mV ref / 1024 steps * 2.0 divider ratio
 
-// Vdd is measured without the divider
+// Vdd is measured without a divider.
 #define VDD_MV_PER_LSB VBAT_MV_PER_LSB / 2.0
 
 // Round for positive numbers
@@ -792,9 +793,6 @@ void lever_check() // Moving the gear lever to the top switches the resistance/g
 void update_resistance()
 {
   raw_resistance = analogRead(RESISTANCE_PIN); // ADC set to oversample
-  //raw_pot_top = analogRead(RESISTANCE_TOP);
-  //raw_pot_wiper = analogRead(RESISTANCE_PIN);
-  //raw_resistance = raw_pot_wiper * ( ( (3300 * 1024) + 1800) / 3600 )  / raw_pot_top;  // (3.3 V Vdd)/(3.6 V Vref)*(ADC counts), rounded
   inst_resistance = max((raw_resistance - res_offset) * res_factor, 0);
   resistance = (RESISTANCE_FILTER * resistance + 2 * inst_resistance) / (RESISTANCE_FILTER + 2);
   gear = gear_lookup(resistance);
@@ -1375,7 +1373,6 @@ void process_cmd()
           CONSOLE_PRINT("Canceled.\n");
           awaiting_conf = AWAITING_NONE;
       }
-      //awaiting_conf = AWAITING_NONE;   // Each handler needs to reset awaiting_conf
       return;
   }
   
