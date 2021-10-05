@@ -14,13 +14,11 @@
 //    prior to the mechanical brake contacting the flywheel, and at the bottom of the range as well.
 
 // These are default cals, used if the filesystem has nothing.
-// The factor shouldn't change unless there is a significant change in the total resistance of the sense pot,
-// the high side voltage, or the high side impedance.
+// These are from a regression of raw ADC values vs. % resistance on the Keiser power calibration graph.
+// The factor shouldn't change as long as we're using Vdd as the reference.
 // The offset changes from bike to bike due to how the magnet assembly engages with the sense pot.
-#define RESISTANCE_OFFSET 161.7       // From Raw ADC - Keiser graph regression
-#define RESISTANCE_FACTOR 0.2182
-//#define RESISTANCE_OFFSET 168.7       // 154.6 * (3.6/3.3) - For Vdd reference instead of 3.6V fixed
-//#define RESISTANCE_FACTOR 0.2380      // 0.2182 * (3.6/3.3)
+#define RESISTANCE_OFFSET 176.8 
+#define RESISTANCE_FACTOR 0.1993
 
 // Calibration with the Keiser tool assumes that the normalized resistance is this value when the
 // magnet is snug against the semicircular pocket in the tool. This corresponds to the bottom
@@ -32,7 +30,7 @@
 //#define PC1 29.3      // Power_ref vs. R @ reference cadence (Ref cadence is 90 RPM)
 //#define PB1 -1.97     // This fit is done for gears 2 to 22.
 //#define PA1 0.135     // Covering the full range requires a 4th order polynomial or
-                      // another, e.g., table lookup, approach.
+                        // another, e.g., table lookup, approach.
 
 // Ratio of power to (power @ reference cadence) vs. RPM, as Ax^2 + Bx + C
 #define PC2 -2.70E-03 // Power/Power_ref vs. RPM

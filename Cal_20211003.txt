@@ -1,0 +1,336 @@
+c Edge of 1/2
+edge of 1/2
+
+res 10
+Raw ADC value 186
+Resistance 6.7%
+Keiser gear number 1
+
+Raw ADC value 184
+Resistance 6.5%
+Keiser gear number 1
+
+Raw ADC value 185
+Resistance 6.6%
+Keiser gear number 1
+
+Raw ADC value 184
+Resistance 6.5%
+Keiser gear number 1
+
+Raw ADC value 185
+Resistance 6.6%
+Keiser gear number 1
+
+Raw ADC value 184
+Resistance 6.5%
+Keiser gear number 1
+
+Raw ADC value 184
+Resistance 6.5%
+Keiser gear number 1
+
+Raw ADC value 185
+Resistance 6.6%
+Keiser gear number 1
+
+Raw ADC value 184
+Resistance 6.5%
+Keiser gear number 1
+
+Raw ADC value 185
+Resistance 6.6%
+Keiser gear number 1
+
+10 measurements.
+Average ADC value 184.6
+Estimated mean 184.7; SD 0.6 . 
+
+c edge of 4/5
+edge of 4/5
+
+res 10
+Raw ADC value 233
+Resistance 17.1%
+Keiser gear number 5
+
+Raw ADC value 233
+Resistance 17.1%
+Keiser gear number 5
+
+Raw ADC value 232
+Resistance 17.0%
+Keiser gear number 5
+
+Raw ADC value 233
+Resistance 17.1%
+Keiser gear number 5
+
+Raw ADC value 233
+Resistance 17.1%
+Keiser gear number 5
+
+Raw ADC value 232
+Resistance 17.0%
+Keiser gear number 5
+
+Raw ADC value 233
+Resistance 17.1%
+Keiser gear number 5
+
+Raw ADC value 233
+Resistance 17.1%
+Keiser gear number 5
+
+Raw ADC value 232
+Resistance 17.0%
+Keiser gear number 5
+
+Raw ADC value 232
+Resistance 16.9%
+Keiser gear number 5
+
+10 measurements.
+Average ADC value 232.6
+Estimated mean 232.7; SD 0.5 . 
+
+c edge of 10/11
+edge of 10/11
+
+res 10
+Raw ADC value 295
+Resistance 30.7%
+Keiser gear number 10
+
+Raw ADC value 295
+Resistance 30.6%
+Keiser gear number 10
+
+Raw ADC value 296
+Resistance 30.8%
+Keiser gear number 10
+
+Raw ADC value 295
+Resistance 30.7%
+Keiser gear number 10
+
+Raw ADC value 296
+Resistance 30.8%
+Keiser gear number 10
+
+Raw ADC value 295
+Resistance 30.7%
+Keiser gear number 10
+
+Raw ADC value 296
+Resistance 30.8%
+Keiser gear number 10
+
+Raw ADC value 296
+Resistance 30.9%
+Keiser gear number 10
+
+Raw ADC value 294
+Resistance 30.6%
+Keiser gear number 10
+
+Raw ADC value 295
+Resistance 30.6%
+Keiser gear number 10
+
+10 measurements.
+Average ADC value 295.3
+Estimated mean 295.4; SD 0.7 . 
+
+c edge of 15/16
+edge of 15/16
+
+res 10
+Raw ADC value 360
+Resistance 44.7%
+Keiser gear number 15
+
+Raw ADC value 359
+Resistance 44.6%
+Keiser gear number 15
+
+Raw ADC value 359
+Resistance 44.6%
+Keiser gear number 15
+
+Raw ADC value 359
+Resistance 44.6%
+Keiser gear number 15
+
+Raw ADC value 360
+Resistance 44.8%
+Keiser gear number 15
+
+Raw ADC value 359
+Resistance 44.7%
+Keiser gear number 15
+
+Raw ADC value 359
+Resistance 44.6%
+Keiser gear number 15
+
+Raw ADC value 359
+Resistance 44.6%
+Keiser gear number 15
+
+Raw ADC value 360
+Resistance 44.8%
+Keiser gear number 15
+
+Raw ADC value 360
+Resistance 44.8%
+Keiser gear number 15
+
+10 measurements.
+Average ADC value 359.4
+Estimated mean 359.4; SD 0.5 . 
+
+c edge of 20/21
+edge of 20/21
+
+res 10
+Raw ADC value 463
+Resistance 67.2%
+Keiser gear number 21
+
+Raw ADC value 462
+Resistance 67.1%
+Keiser gear number 21
+
+Raw ADC value 463
+Resistance 67.2%
+Keiser gear number 21
+
+Raw ADC value 463
+Resistance 67.3%
+Keiser gear number 21
+
+Raw ADC value 462
+Resistance 67.1%
+Keiser gear number 21
+
+Raw ADC value 463
+Resistance 67.2%
+Keiser gear number 21
+
+Raw ADC value 462
+Resistance 67.1%
+Keiser gear number 21
+
+Raw ADC value 463
+Resistance 67.2%
+Keiser gear number 21
+
+Raw ADC value 463
+Resistance 67.3%
+Keiser gear number 21
+
+Raw ADC value 461
+Resistance 67.0%
+Keiser gear number 21
+
+10 measurements.
+Average ADC value 462.5
+Estimated mean 462.4; SD 0.7 . 
+
+c brake contact
+brake contact
+
+res 10
+Raw ADC value 687
+Resistance 115.5%
+Keiser gear number 24
+
+Raw ADC value 687
+Resistance 115.9%
+Keiser gear number 24
+
+Raw ADC value 686
+Resistance 116.0%
+Keiser gear number 24
+
+Raw ADC value 686
+Resistance 116.0%
+Keiser gear number 24
+
+Raw ADC value 686
+Resistance 116.0%
+Keiser gear number 24
+
+Raw ADC value 686
+Resistance 116.0%
+Keiser gear number 24
+
+Raw ADC value 686
+Resistance 115.9%
+Keiser gear number 24
+
+Raw ADC value 686
+Resistance 115.9%
+Keiser gear number 24
+
+Raw ADC value 686
+Resistance 116.0%
+Keiser gear number 24
+
+Raw ADC value 685
+Resistance 115.8%
+Keiser gear number 24
+
+10 measurements.
+Average ADC value 686.1
+Estimated mean 686.0; SD 0.6 . 
+
+c zero stop
+zero stop
+
+res 10
+Raw ADC value 108
+Resistance 0.1%
+Keiser gear number 1
+
+Raw ADC value 108
+Resistance 0.0%
+Keiser gear number 1
+
+Raw ADC value 109
+Resistance 0.0%
+Keiser gear number 1
+
+Raw ADC value 108
+Resistance 0.0%
+Keiser gear number 1
+
+Raw ADC value 108
+Resistance 0.0%
+Keiser gear number 1
+
+Raw ADC value 108
+Resistance 0.0%
+Keiser gear number 1
+
+Raw ADC value 107
+Resistance 0.0%
+Keiser gear number 1
+
+Raw ADC value 108
+Resistance 0.0%
+Keiser gear number 1
+
+Raw ADC value 107
+Resistance 0.0%
+Keiser gear number 1
+
+Raw ADC value 108
+Resistance 0.0%
+Keiser gear number 1
+
+10 measurements.
+Average ADC value 107.9
+Estimated mean 107.9; SD 0.5 . 
+

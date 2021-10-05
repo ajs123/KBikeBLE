@@ -4,6 +4,9 @@
   - Writeup on power consumption
   - Better writeup on calibration
 - Calibration
+  - Make calibration independent of variations in the Vdd regulator
+    - Switch to Vdd as the default reference? Compare measurement SD using Vdd vs. fixed reference.
+    - OR Calculate the cal factor based on the Vdd of the individual unit
   - Think about approaches to a two-point calibration (without a Keiser computer reference?)
 - Keeping more parameters or options in the filesystem, such as
   - Gear vs. Res% display

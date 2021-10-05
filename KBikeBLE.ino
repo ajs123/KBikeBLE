@@ -216,7 +216,9 @@ void display_numbers()
   Analog input processing - resistance magnet position and battery
 * ********************************************************************************/
 
-eAnalogReference analog_reference = AR_INTERNAL;
+// Resistance sensing is potentiometric, so Vdd is the natural reference.
+// This makes the scale factor independent of the individual Vdd regulator
+eAnalogReference analog_reference = AR_VDD4;  
 
 float averageADC()
 {
@@ -245,6 +247,23 @@ void ADC_setup() // Set up the ADC for ongoing resistance measurement
   analogCalibrateOffset();
   displog.printf("ADC %.1f\n", averageADC());
   delay(LOG_PAUSE);
+}
+
+float readVdd()
+{
+  float Vdd;
+  if (analog_reference == AR_VDD4) 
+  {
+    analogReference(AR_INTERNAL);
+    delay(1);
+    Vdd = analogReadVDD() * VDD_MV_PER_LSB / 1000.0F;
+    analogReference(AR_VDD4);
+    delay(1);
+  }
+  else {
+    Vdd = analogReadVDD() * VDD_MV_PER_LSB / 1000.0F;
+  }
+  return Vdd;
 }
 
 /*****************************************************************************************************
@@ -1117,19 +1136,22 @@ void cmd_res()
 
 void cmd_adcref()
 {
+  float Vdd = readVdd();
+
   if (analog_reference == AR_INTERNAL)
   {
     analog_reference = AR_VDD4;
-    res_offset *= (3.6 / 3.3);   // This should be the actual VDD
-    res_factor /= (3.6 / 3.3);
+    res_offset *= (3.6 / Vdd);   // This should be the actual VDD
+    res_factor /= (3.6 / Vdd);
     CONSOLE_PRINT("ADC reference is now Vdd.\n\n");
   }
   else
   {
     analog_reference = AR_INTERNAL;
-    res_offset *= (3.3 / 3.6);
-    res_factor /= (3.3 / 3.6);
-    CONSOLE_PRINT("ADC reference is now internal 3.6V.\n\n");
+    res_offset *= (Vdd / 3.6);
+    res_factor /= (Vdd / 3.6);
+    CONSOLE_PRINT("ADC reference is now internal 3.6V.\n");
+    CONSOLE_PRINT("This will remain until changed or the system is reset.\n\n");
   }
   analogReference(analog_reference);
 }
