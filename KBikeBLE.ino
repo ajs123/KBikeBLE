@@ -1094,7 +1094,7 @@ void cmd_res()
 {
   uint32_t sum_resistance = 0;
   uint8_t n_resistance = 0;
-  uint8_t max_n = 20; // Default number of samples
+  uint8_t max_n = 10; // Default number of samples
 
   double mean = 0;
   double M2 = 0;
@@ -1105,6 +1105,9 @@ void cmd_res()
   {
     max_n = min(0xFF, max(atoi(arg), 1));
   }
+
+  CONSOLE_PRINTF("%d measurements (any input to stop)...\n\n", max_n);
+
   for (uint8_t i = max_n; i > 0; i--)
   {
     sum_resistance += raw_resistance;

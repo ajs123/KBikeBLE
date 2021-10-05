@@ -18,8 +18,8 @@
 
 //#define CRANK_PIN  7  // Pushbutton on the Adafruit nrf52840 Express, for debugging
 
-// Connections for tidy ribbon cable from a connector that mates with the cable in the bike
-// to the Feather board.
+// Connections for a tidy ribbon cable from a connector that mates the cable in the bike
+// to the Feather board
 #define CRANK_PIN A1
 #define RESISTANCE_PIN A2
 #define RESISTANCE_TOP A3
