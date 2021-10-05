@@ -1,13 +1,6 @@
 /********************************************************************
-    Calibration data
-       Here, the cal is a direct fit of power vs. resistance setting @ constant speed
-                    times a fit of power vs. speed at constant resistance setting
-       Power = ( power@90rpm vs. R ) * ( power/power@90 vs. C )
-            where R = normalized resistance (0-100 over full range of Keier's graph)
-                  C = cadence (RPM)
-
-       Gear is related to resistance by the R at the bottom of the range for each gear
-  ********************************************************************/
+    Calibration
+ ********************************************************************/
 
 // Normalized resistance (0-100 scale) is ( ADC reading - OFFSET ) * FACTOR
 // Normalized resistance will exceed 100% because there is magnet assembly excursion beyond the top of the range,
@@ -26,6 +19,7 @@
 #define CALTOOL_RES 40
 
 // Power vs. resistance at reference cadence (90 RPM) as Ax^2 + Bx + C
+// This has been superceded by use of Keiser's published calibration curve.
 // The following, which is pretty good from Keiser gears 2-20, was abandonded in favor of a table lookup//
 //#define PC1 29.3      // Power_ref vs. R @ reference cadence (Ref cadence is 90 RPM)
 //#define PB1 -1.97     // This fit is done for gears 2 to 22.
