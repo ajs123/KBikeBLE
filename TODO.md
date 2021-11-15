@@ -1,8 +1,8 @@
 ## TODO
 - Documentation
+  - Edit HOWTO.md so pin assignments match v1.1 defaults
   - More comprehensive writeup of calibration
   - Writeup on power consumption
-  - Better writeup on calibration
 - Calibration
   - Think about approaches to a two-point calibration (without a Keiser computer reference?)
 - Keeping more parameters or options in the filesystem, such as
