@@ -1,8 +1,8 @@
 ## TODO
 - Documentation
+  - Update HOWTO.md with pin assignments to match the current code.
   - More comprehensive writeup of calibration
   - Writeup on power consumption
-  - Better writeup on calibration
 - Keeping more parameters or options in the filesystem, such as
   - Gear vs. Res% display
   - Filtering
