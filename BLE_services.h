@@ -149,7 +149,7 @@ struct power_data_t
 
 struct bike_data_t
 {
-  uint8_t flags[2] {0b01100100, 0b00000000};  // These don't change
+  uint8_t flags[2] {0b01000100, 0b00000000};  // These don't change
   uint16_t data[4];                           // These are loaded with the data
 } bike_data;
 
