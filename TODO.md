@@ -14,7 +14,7 @@
 - Improve the display: larger size with more data?
   - Things maybe to add
     - Accumulated  data
-      - Miles - requires a model
+      - Distance - requires a model
       - Calories - requires a model
       - Elapsed time
 - Other uses for swings of the resistance lever as a signal
