@@ -1,6 +1,5 @@
 ## TODO
 - Documentation
-  - Edit HOWTO.md so pin assignments match v1.1 defaults
   - More comprehensive writeup of calibration
   - Writeup on power consumption
 - Calibration
@@ -10,11 +9,13 @@
   - Filtering
 - Consider flashing the gear/resistance display when the lever is at the top (instead of Keiser's "88").
 - BLE Services
-  - If continuing to support FTMS, implement a real model-based calc for speed (mph/kph) as a function of power and cadence. 
+  - If continuing to support FTMS, 
+    - implement a real model-based calc for speed (mph/kph) (or duplicate of Keiser's). 
+    - provide options to set up and advertise just FTMS or just CPS, since some users report that this makes connections quicker.
 - Improve the display: larger size with more data?
   - Things maybe to add
     - Accumulated  data
-      - Distance - requires a model
+      - Distance - requires a speed estimate
       - Calories - requires a model
       - Elapsed time
 - Other uses for swings of the resistance lever as a signal

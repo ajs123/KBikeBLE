@@ -18,13 +18,13 @@ This provides an overview for builders, along with instructions for setup, calib
     - An RJ9 cable, with the connector cut off of one end, conductors stripped, and connected to the Feather by your preferred means. These cables are made to be mechanically terminated with insulation displacement connectors, so conductors are sometimes hard to strip cleanly.
 
       ![RJ9 cable](docs/Coiled_cable.jpg)
-   - A replacement Keiser cable. [They're available](https://www.sportsmith.com/cord-computer-to-pickup/product/10341?serial=1187), they include nice strain releifs for where they pass through the tubing in the bike along with a coiled section to accommodate the handlebar adjustment, and they have conductors that should be easy to strip. The conductor colors are the same as those on a standard RJ9 cable.
+   - A replacement Keiser cable. [They're available](https://www.sportsmith.com/cord-computer-to-pickup/product/10341?serial=1187), they include nice strain releifs for where they pass through the tubing in the bike along with a coiled section to accommodate the handlebar adjustment, and they have conductors that should be easy to strip. The conductor colors are the same as those on a standard RJ9 cable. Mating sockets for the 2 mm pitch connector used at the computer end of the cable are readily available. See [Build.md](Build.md) for an example of this approach.
 
      ![Keiser cable](docs/Keiser_cable.jpg)
-   - An intact RJ9 cable, and an RJ9 receptacle to provide easily soldered wires for connection to the Feather.
+   - Use the existing cable in the bike. Since it may be helpful to retain the ability to compare Keiser computer readings with KBikeBLE readings, it's not recommended that you cut your only Keiser cable or do anything that makes it hard to switch between the two. 
+  - An intact RJ9 cable, and an RJ9 receptacle to provide easily soldered wires for connection to the Feather.
 
       ![RJ9 receptacle](docs/RJ9_receptacle.jpg)
-   - Use the existing cable in the bike. Note that presently it may be helpful to retain the ability to compare Keiser computer readings with KBikeBLE readings, so destruction of the Keiser cable or making it hard to switch between the two isn't recommended.
 1. Transient protection for the crank (pedal) rotation input to the Feather. While this may be unnecessary since the sensor assembly on the bike has a diode for the same purpose, and the GPIO pins have some protection as well, the prototype used a 2.2K ohm resistor between the crank switch and the digital input to the Feather.
 1. Some sort of case. The prototype used a nice paper box with a piece of an old CD case as a window in the lid, and pieces of foam to take up unused space inside. Remember that the OLED display is configured for *portrait* (vertical) orientation.
 1. A Keiser calibration tool. See the section below on calibration for alternatives.
@@ -45,14 +45,15 @@ This provides an overview for builders, along with instructions for setup, calib
   || SDA | SDA
   || Gnd | Gnd | Ground is the only pin that has to be connected to two places: the OLED display and the RJ9 cable to the bike.
   Battery || JST connector | Be sure that the polarity is correct!
-  RJ9 (bike) | Green* | Pin 9** | Crank (pedal rotation) switch***
-  || Black* | Pin 10** | Resistance sensor excitation. It's connected to a GPIO pin so that the software can de-energize the sensor on the bike to save power.
-  || Red* | Pin A1** | Resistance magnet position
+  RJ9 (bike) | Green* | Pin A1** | Crank (pedal rotation) switch***
+  || Red* | Pin A2** | Resistance magnet position
+  || Black* | Pin A3** | Resistance sensor excitation. It's connected to a GPIO pin so that the software can de-energize the sensor on the bike to save power.
   || Yellow* | Gnd | Resistance sensor / crank switch common
 
   \* Colors refer to the standard RJ9 conductors on most cables
   
-  \** The resistance magnet position can use any analog input (A0-A5) and the sensor excitation and crank switch can use any GPIO (5-13 or A0-A5). If changing any of these, edit bike_interface.h accordingly.
+  \** The resistance magnet position can use any analog input (A0-A5) and the sensor excitation and crank switch can use any GPIO (5-13 or A0-A5). If changing any of these, edit bike_interface.h accordingly. These pin assignments are conducive to running a tidy ribbon cable from the Feather to a socket that mates with the
+  stock Keiser cable.
 
   \*** Include a 2.2K Ohm resistor between the green wire and the pin on the Feather.
 
@@ -97,6 +98,15 @@ Look over options.h. The file includes a number of options, with some guidance f
 * Power-saving timeouts, and whether power savings between cycling sessions is by full power-down or just idling all tasks.
 * Filtering the keep the resistance display and power readings from flipping around too much (note: if electrical connections are secure, you shouldn't need much filtering).
 * Whether you want to default to showing the "gear" like the Keiser computer, or the resistance in %. 
+* Which Bluetooth services you want to provide. 
+  * Cycling Power Service (CPS) is provided by most bike power meters and seems to be the most commonly used by various apps.
+  * FiTness Machine Service (FTMS) covers treadmills, rowers, steppers, and bikes. Some apps, such as Zwift, meant not just for biking will look for it but may not require it. Some apps that use FTMS may expect to be able to change the resistance, which isn't supported here.
+  
+    You need to choose one of these, or both. There are some reports that apps connect more quickly with just one of the two enabled. CAUTION: CPS has seen more testing.
+  
+  * If you have a battery, you may want to enable the Battery Service so that apps can directly read the state of charge.
+
+  
 * Bluetooth power. 
 * Whether you want to connect to KBikeBLE's command line interface via the USB (Serial) port and/or BluetoothLE (using Adafruit's app). 
 * Whether you have a battery connected, and want the Bluetooth battery service to be available

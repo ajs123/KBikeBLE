@@ -1,6 +1,6 @@
 /* Bluetooth console for Keiser M3 **********************************
 *********************************************************************/
-#define VERSION "1.1"
+#define VERSION "1.2"
 
 #include <Arduino.h>
 #include <bluefruit.h> // nrf52 built-in bluetooth
@@ -308,8 +308,14 @@ float sinterp(const float x_ref[], const float y_ref[], const float slopes[], in
 
 void startAdv()
 {
-  Bluefruit.Advertising.addService(svc_ftms, svc_cps);   // Advertise the services
+  #ifdef PROVIDE_CPS
+  Bluefruit.Advertising.addService(svc_cps);   // Advertise the services
+  #endif
+
+  #ifdef PROVIDE_FTMS
+  Bluefruit.Advertising.addService(svc_ftms);
   Bluefruit.Advertising.addData(0x16, FTMS_Adv_Data, 5); // Required data field for FTMS
+  #endif
 
 #if (BLEUART)
   Bluefruit.Advertising.addService(bleuart);
@@ -352,6 +358,7 @@ void restartBLE()
   }
 }
 
+#ifdef PROVIDE_FTMS
 void setupFTMS()
 {
   // Configure and start the FTM service
@@ -380,7 +387,9 @@ void setupFTMS()
   char_bike_data.begin();
 
 }
+#endif
 
+#ifdef PROVIDE_CPS
 void setupCPS()
 {
   // Configure and start the CP service
@@ -406,6 +415,7 @@ void setupCPS()
   char_cp_measurement.begin();
 
 }
+#endif
 
 void connect_callback(uint16_t conn_handle)
 {
@@ -427,10 +437,16 @@ void disconnect_callback(uint16_t conn_handle, uint8_t reason)
   (void)reason;
 
   // Start over with both characteristics active
-  ftm_active = true;
+  #ifdef PROVIDE_CPS
   cp_active = true;
+  #endif
+  
+  #ifdef PROVIDE_FTMS
+  ftm_active = true;
+  #endif
 }
 
+#ifdef PROVIDE_FTMS
 void ftm_cccd_callback(uint16_t conn_hdl, BLECharacteristic *chr, uint16_t cccd_value) // Notify callback for FTM characteristic
 {
   // Check the characteristic this CCCD update is associated with in case
@@ -447,7 +463,9 @@ void ftm_cccd_callback(uint16_t conn_hdl, BLECharacteristic *chr, uint16_t cccd_
     }
   }
 }
+#endif
 
+#ifdef PROVIDE_CPS
 void cps_cccd_callback(uint16_t conn_hdl, BLECharacteristic *chr, uint16_t cccd_value) // Notify callback for CPS characteristic
 {
   // Check the characteristic this CCCD update is associated with in case
@@ -464,24 +482,26 @@ void cps_cccd_callback(uint16_t conn_hdl, BLECharacteristic *chr, uint16_t cccd_
     }
   }
 }
+#endif
 
+#ifdef PROVIDE_FTMS
 void format_bike_data()
 {
   //    B2-3    = Instantaneous speed   - UINT16 - Km/Hr with 0.01 resolution
   //    B4-5    = Instantaneous cadence - UINT16 - 1/min with 0.5 resolution
   //    B6-7    = Instantaneous power   - UINT16 - W with 1.0 resolution
 
-  uint16_t speed_int = roundpos(bspeed / 0.01);
-  uint16_t cadence_int = roundpos(cadence / 0.5);
+  uint16_t speed_int = roundpos(bspeed * 100);
+  uint16_t cadence_int = roundpos(cadence * 2);
   uint16_t power_int = roundpos(power);
-  uint16_t resistance_int = roundpos(resistance);
 
   bike_data.data[0] = speed_int;
   bike_data.data[1] = cadence_int;
-  //bike_data.data[2] = resistance_int;
   bike_data.data[2] = power_int;
 }
+#endif
 
+#ifdef PROVIDE_CPS
 void format_power_data()
 {
   // Fields are
@@ -499,6 +519,7 @@ void format_power_data()
   power_data.data[2] = crank_ticks;
   interrupts();
 }
+#endif
 
 /*********************************************************************************************
   Simplified ISR for crank sensor events. Triggerd on the pin tranisitioning low (switch closure).
@@ -542,7 +563,7 @@ void init_cal()
   {
     res_offset = RESISTANCE_OFFSET;
     write_param_file("offset", &res_offset, sizeof(res_offset));
-    displog.println(F("Offset\ndefault\n\ write"));
+    displog.println(F("Offset\ndefault\n write"));
     displog.printf(" %.1f\n", res_offset);
   }
   else
@@ -612,8 +633,13 @@ void setup()
   #endif
 
   // Setup the FiTness Machine and Cycling Power services
-  setupFTMS();
+  #ifdef PROVIDE_CPS
   setupCPS();
+  #endif
+
+  #ifdef PROVIDE_FTMS
+  setupFTMS();
+  #endif
 
   // Start the BLEUart service
   #if (BLEUART)
@@ -918,24 +944,45 @@ void process_crank_event()
   } // no new_crank_event
 }
 
+#ifdef PROVIDE_FTMS // Presently, these are only used for reporting in the FTMS service (Bike Data characteristic)
+
+// Polynomial evaluation by Horner's method - UNFINISHED
+float poly(float x, const float* coeffs, const uint8_t n) {
+  float result = 0;
+  for (uint8_t i = n-1; i > 0; i--) {
+    result = x * (result + coeffs[i]);
+  }
+  result += coeffs[0];
+  return result;
+}
+
+// Speed from power, mimicking Keiser and Peloton
+void calcSpeed(){
+      bspeed = (power >= SPEED_FIT_POWER_THRESHOLD) ? poly(power, SC_GE26, SPEED_FIT_ORDER) : poly(power, SC_LT26, SPEED_FIT_ORDER);
+}
+#endif
+
 void updateBLE()
 {
   if (Bluefruit.connected())
   {
 
     // Update data (with notify()) for the active characteristics. Both are active until the client responds to one of them.
+    #ifdef PROVIDE_CPS
     if (cp_active)
     {
       format_power_data();
       char_cp_measurement.notify((uint8_t *)&power_data, 8);     // The cast should not be needed
     }
+    #endif
 
+    #ifdef PROVIDE_FTMS
     if (ftm_active)
     {
-      bspeed = 20 * cadence / 60; // NOT A REAL CAL OF ANY KIND!
       format_bike_data();
       char_bike_data.notify((uint8_t *)&bike_data, 8);
     }
+    #endif
   }
 }
 
@@ -1452,6 +1499,9 @@ void update(TimerHandle_t xTimerID)
     float inst_power = max(sinterp(gears, power90, slopes, gear, resistance) * (PC2 + PB2 * cadence + PA2 * cadence * cadence), 0);
     //float inst_power = max((PC1 + PB1 * resistance + PA1 * resistance_sq) * ( PC2 + PB2 * cadence + PA2 * cadence * cadence), 0);
     power = inst_power;
+    #ifdef PROVIDE_FTMS  //Presently, speed is used only for FTMS service / Bike Data characteristic
+    if (ftm_active) calcSpeed();
+    #endif
 
     updateBLE();
   }
