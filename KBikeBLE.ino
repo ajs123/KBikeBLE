@@ -478,8 +478,8 @@ void format_bike_data()
 
   bike_data.data[0] = speed_int;
   bike_data.data[1] = cadence_int;
-  bike_data.data[2] = resistance_int;
-  bike_data.data[3] = power_int;
+  //bike_data.data[2] = resistance_int;
+  bike_data.data[2] = power_int;
 }
 
 void format_power_data()
@@ -934,7 +934,7 @@ void updateBLE()
     {
       bspeed = 20 * cadence / 60; // NOT A REAL CAL OF ANY KIND!
       format_bike_data();
-      char_bike_data.notify((uint8_t *)&bike_data, 10);
+      char_bike_data.notify((uint8_t *)&bike_data, 8);
     }
   }
 }

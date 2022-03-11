@@ -131,7 +131,7 @@ struct power_data_t
         B0    = UINT8 - Flag (MANDATORY)
         7     = 0 - Average power present
         6     = 1 - Instantaneous power present
-        5     = 1 - Resistance level present
+        5     = 0 - Resistance level present
         4     = 0 - Total distance present
         3     = 0 - Average cadence present
         2     = 1 - Instantaneous cadence present
