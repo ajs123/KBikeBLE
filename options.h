@@ -89,9 +89,10 @@
 /* Bluetooth services. --------------------------------------------------------------------------------
    We can provide Cycling Power Service (CPS) and/or FiTness Machine Service (FTMS).
    CPS has been more thoroughly tested. In addition, apps that use FTMS may expect to be able to set
-   the resistance (as with a full trainer). FTMS can include speed (Km/hr) and distance (Km) along with
-   power and cadence, but these are just estimates. Keiser's speed estimate, for example (like Peloton's)
-   are just fixed functions of power.
+   the resistance (as with a full trainer). FTMS must include speed (Km/hr) and may include distance (Km), 
+   but these are just estimates. Keiser's speed estimate, for example (like Peloton's)
+   is just a fixed functions of power. It seems better to let training/riding apps like Zwift calculate
+   speed from power, rider weight, and incline.
 
    Considering all of the above, the current default is to provide CPS only.
 */
