@@ -3,8 +3,12 @@
   - Edit HOWTO.md so pin assignments match v1.1 defaults
   - More comprehensive writeup of calibration
   - Writeup on power consumption
+<<<<<<< HEAD
 - Calibration
   - Think about approaches to a two-point calibration (without a Keiser computer reference?)
+=======
+  - Better writeup on calibration
+>>>>>>> 6d6c39c23250beaa2aa9fbc96f8d60799f4c0c05
 - Keeping more parameters or options in the filesystem, such as
   - Gear vs. Res% display
   - Filtering
@@ -24,7 +28,7 @@
   - Clean up code in connect callbacks
   - Code to include a battery or not is a bit clunky, especially in display_numbers()
   - Review for functions that should be inline
-  - C++ style static consts and inline functions instead of C-style #defines and macros where appropriate
+  - C++ style static consts and inline functions instead of C-style #defines and macros, where appropriate
 - Option to power down the crank sensor (total power-down), for those who plan to expose a reset or wakeup switch on the packaged computer. This might not provide any meaningful advantage unless there's also a way to power down the display.
 
 ONE DAY?

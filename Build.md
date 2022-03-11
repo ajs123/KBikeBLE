@@ -180,6 +180,8 @@ From bottom-right, the layers are
 
 You're finished with your build and install.
 
+![On bike](docs/On_bike.jpeg)
+
 ### Calibration
 
 You're almost ready to go. Now see **Calibrating to your bike** in the [HOWTO](HOWTO.md). In brief, it's

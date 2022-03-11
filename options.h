@@ -78,18 +78,12 @@
 #define BLEBAS       1 // Non-zero = If there's a battery, activate the BLE battery service
 #define WATCH_VDD    1 // Non-zero = Reduced Vdd means low battery. Requires RESISTANCE_TOP to be
                        // on an analog pin (see bike_interface.h)
-#define VDD_MIN 3250   // Vdd in mV below this will trigger a low battery indicator
-
-/* Low battery indicator - flashes when below this percentage. -----------------------------------------
-   This ought to be determined by the level at which the proper ADC reference is lost. For the
-   Adfruit Feather nrf52840 Express, things should work down to about 10%.
-*/
-#define BATT_LOW 20
+#define BATT_LOW 15    // Battery indicator flashes when below this percentage,
+#define VDD_MIN 3250   //    ...or Vdd is below this value in mV.
 
 /* Display the Keiser gear number, or % resistance, at startup? ---------------------------------------
    The alternative can always be chosen by moving the resistance lever to the top.
 */
-
 #define GEAR_DISPLAY true   // true = gear, false = res %
 
 /* Bluetooth options. ---------------------------------------------------------------------------------
