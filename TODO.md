@@ -1,4 +1,5 @@
 ## TODO
+- Verify that the speed (duplicate of Keiser/Peloton) is being calculated correctly
 - Documentation
   - More comprehensive writeup of calibration
   - Writeup on power consumption
@@ -9,11 +10,10 @@
   - Filtering
 - Consider flashing the gear/resistance display when the lever is at the top (instead of Keiser's "88").
 - BLE Services
-  - If continuing to support FTMS, 
-    - implement a real model-based calc for speed (mph/kph) (or duplicate of Keiser's). 
-    - provide options to set up and advertise just FTMS or just CPS, since some users report that this makes connections quicker.
+  - Debug FTMS - does note appear to work with Zwift 
 - Improve the display: larger size with more data?
   - Things maybe to add
+    - Speed
     - Accumulated  data
       - Distance - requires a speed estimate
       - Calories - requires a model
@@ -21,8 +21,8 @@
 - Other uses for swings of the resistance lever as a signal
   - e.g., reset ride between people, if providing accumulated data
 - More comprehensive code cleanup
-  - Split code across multiple source files
-  - Clean up code in connect callbacks
+  - Split more code across multiple source files
+  - Clean up connect callbacks
   - Code to include a battery or not is a bit clunky, especially in display_numbers()
   - Review for functions that should be inline
   - C++ style static consts and inline functions instead of C-style #defines and macros, where appropriate
