@@ -946,19 +946,21 @@ void process_crank_event()
 
 #ifdef PROVIDE_FTMS // Presently, these are only used for reporting in the FTMS service (Bike Data characteristic)
 
-// Polynomial evaluation by Horner's method - UNFINISHED
-float poly(float x, const float* coeffs, const uint8_t n) {
-  float result = 0;
-  for (uint8_t i = n-1; i > 0; i--) {
-    result = x * (result + coeffs[i]);
+// Polynomial evaluation by Horner's method
+// Provides coeffs[0] + coeffs[1] * x + coeffs[2] * x^2 + ...
+float poly(const float x, const float* coeffs, const uint8_t n) {
+  uint8_t i = n;
+  float result = coeffs[i];
+  for (i--; i >= 0; i--) {
+    result = coeffs[i] + x * result;
   }
-  result += coeffs[0];
   return result;
 }
 
 // Speed from power, mimicking Keiser and Peloton
 void calcSpeed(){
-      bspeed = (power >= SPEED_FIT_POWER_THRESHOLD) ? poly(power, SC_GE26, SPEED_FIT_ORDER) : poly(power, SC_LT26, SPEED_FIT_ORDER);
+      float sqrtPower = sqrt(power)
+      bspeed = (power >= SPEED_FIT_POWER_THRESHOLD) ? poly(sqrtPower, SC_GE26, SPEED_FIT_ORDER) : poly(sqrtPower, SC_LT26, SPEED_FIT_ORDER);
 }
 #endif
 

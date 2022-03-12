@@ -137,7 +137,7 @@ struct power_data_t
         2     = 1 - Instantaneous cadence present
         1     = 0 - Average speed present
         0     = 0 - More Data (Instantaneous speed field not present)
-        B1    = UINT 8
+        B1    = UINT8
         4     = 0 - Remaining time present
         3     = 0 - Elapsed time present
         2     = 0 - Metabolic equivalent present
@@ -150,7 +150,7 @@ struct power_data_t
 struct bike_data_t
 {
   uint8_t flags[2] {0b01000100, 0b00000000};  // These don't change
-  uint16_t data[4];                           // These are loaded with the data
+  uint16_t data[3];                           // These are loaded with the data
 } bike_data;
 
 #endif
