@@ -77,4 +77,7 @@
   - V0.18 judged worthy of release.
 - V1.1
   - Changed to Vdd as the ADC reference. This makes the resistance reading truly potentiometric (independent of Vdd), so the resistance scale factor should be truly constant from bike to bike as long as the resistance in cables and connections is insignificant compared with the 10K potentiometer value.
+- V1.2working
+  - Added options to separately enable CPS and FTMS services
+  - Added a simple bike speed estimate, based upon power only, that mimics the one used by Keiser and Peloton computers - NOT YET TESTED
   
