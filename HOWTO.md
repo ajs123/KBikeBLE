@@ -50,7 +50,7 @@ This provides an overview for builders, along with instructions for setup, calib
   || Black* | Pin A3** | Resistance sensor excitation. It's connected to a GPIO pin so that the software can de-energize the sensor on the bike to save power.
   || Yellow* | Gnd | Resistance sensor / crank switch common
 
-  \* Colors refer to the standard RJ9 conductors on most cables
+  \* Colors refer to the standard RJ9 conductors on most cables, as tested with an M3 manufactured in 2012. **It's recommended that you check the colors as described at the end of this document.**
   
   \** The resistance magnet position can use any analog input (A0-A5) and the sensor excitation and crank switch can use any GPIO (5-13 or A0-A5). If changing any of these, edit bike_interface.h accordingly. These pin assignments are conducive to running a tidy ribbon cable from the Feather to a socket that mates with the
   stock Keiser cable.
@@ -207,7 +207,7 @@ KBikeBLE also provides the BLE FiTness Machine Service (FTMS). That service is i
 
 ## Verifying cable color codes
 
-Just in case you're not sure that the conductor colors on your cable match up with the RJ9 standard, here's how to check.
+Here's how to check the correspondence between conductor color and function. 
 
 What we expect is...
 
