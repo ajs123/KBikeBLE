@@ -47,17 +47,16 @@ This provides an overview for builders, along with instructions for setup, calib
   Battery || JST connector | Be sure that the polarity is correct!
   RJ9 (bike) | Green* | Pin A1** | Crank (pedal rotation) switch***
   || Red* | Pin A2** | Resistance magnet position
-  || Black* | Pin A3** | Resistance sensor excitation. It's connected to a GPIO pin so that the software can de-energize the sensor on the bike to save power.
+  || Black* | Pin A3** | Resistance sensor excitation. Using GPIO pin frot his allows the software can de-energize the sensor on the bike to save power.
   || Yellow* | Gnd | Resistance sensor / crank switch common
 
   \* Colors refer to the standard RJ9 conductors on most cables, as tested with an M3 manufactured in 2012. **It's recommended that you check the colors as described at the end of this document.**
   
-  \** The resistance magnet position can use any analog input (A0-A5) and the sensor excitation and crank switch can use any GPIO (5-13 or A0-A5). If changing any of these, edit bike_interface.h accordingly. These pin assignments are conducive to running a tidy ribbon cable from the Feather to a socket that mates with the
-  stock Keiser cable.
+  \** The resistance magnet position can use any analog input (A0-A5) and the sensor excitation and crank switch can use any GPIO (5-13 or A0-A5). If changing any of these, edit bike_interface.h accordingly. These pin assignments are conducive to running a tidy ribbon cable from the Feather to a socket that mates with the stock Keiser cable.
 
   \*** Include a 2.2K Ohm resistor between the green wire and the pin on the Feather.
 
-  Note: An option for the display is to use the [Adafruit FeatherWing display](https://www.adafruit.com/product/4650). In that case, all you'll need to connect is the four RJ9 conductors and the series resistor. If you use the FeatherWing and install all of the header pins, Button A will be on Feather Pin 9, which per the chart below is assigned to the crank switch. You can (a) leave that header pin off of the FeatherWing, (b) use a different pin for the crank switch (green wire) and edit bike_interface.h accordinlgy, or (c) don't worry about it, as it won't hurt anything, and the button could be handy for testing without plugging into the bike.
+  Note: An option for the display is to use the [Adafruit FeatherWing display](https://www.adafruit.com/product/4650). In that case, all you'll need to connect is the four RJ9 conductors and the series resistor. If you use the FeatherWing and install all of the header pins, buttons A, B, and C to the left of the display will be connected to pins 9, 6, and 5 of the Feather. Choosing one of these as the crank switch in bike_interface.h may be handy for testing when not connected to a bike.
 
 ## Installing the software
 * Install the Arduino IDE if you haven't already, and follow Adafruit's instructions for installing the core for the Feather nRF52840 Express. 
