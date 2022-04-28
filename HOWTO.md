@@ -38,17 +38,17 @@ This provides an overview for builders, along with instructions for setup, calib
   
   Assuming you're using an I2C display...
 
-  Part | Pin/conductor | Where | Notes
+  Part | Pin/conductor | Where | Notes (CAPS = macros defined in bike_interface.h)
   ---- | ------------- | ----- | -----
   OLED display | Vcc | 3V
   || SCL | SCL
   || SDA | SDA
   || Gnd | Gnd | Ground is the only pin that has to be connected to two places: the OLED display and the RJ9 cable to the bike.
   Battery || JST connector | Be sure that the polarity is correct!
-  RJ9 (bike) | Green* | Pin A1** | Crank (pedal rotation) switch***
-  || Red* | Pin A2** | Resistance magnet position
-  || Black* | Pin A3** | Resistance sensor excitation. Using GPIO pin frot his allows the software can de-energize the sensor on the bike to save power.
-  || Yellow* | Gnd | Resistance sensor / crank switch common
+  RJ9 (bike) | Green* | Pin A1** | CRANK_PIN - Crank (pedal rotation) switch***
+  || Red* | Pin A2** | RESISTANCE_PIN - Resistance magnet position
+  || Black* | Pin A3** | RESISTANCE_TOP - Resistance sensor excitation. Using GPIO pin frot his allows the software can de-energize the sensor on the bike to save power.
+  || Yellow* | Gnd | GROUND - Resistance sensor / crank switch common
 
   \* Colors refer to the standard RJ9 conductors on most cables, as tested with an M3 manufactured in 2012. **It's recommended that you check the colors as described at the end of this document.**
   
