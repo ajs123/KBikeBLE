@@ -208,7 +208,7 @@ KBikeBLE also provides the BLE FiTness Machine Service (FTMS). That service is i
 
 Here's how to check the correspondence between conductor color and function. 
 
-What we expect is...
+What we expect (at least for M3's manufactured in the latter half of the product life) is...
 
 Conductor | What
 --------- | ----
