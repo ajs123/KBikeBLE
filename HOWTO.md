@@ -212,16 +212,25 @@ What we expect is...
 
 Conductor | What
 --------- | ----
-Green     | Crank (pedal rotation) switch
-Black     | One end of the resistance sense potentiometer
-Red       | Resistance magnet position
-Yellow    | Other end (common or ground) of the resistance sense potentiometer and the crank switch
+Green     | CRANK_PIN - Crank (pedal rotation) switch
+Black     | RESISTANCE_TOP - One end of the resistance sense potentiometer
+Red       | RESISTANCE_PIN - Resistance magnet position
+Yellow    | GROUND - Other end (common or ground) of the resistance sense potentiometer and the crank switch
 
-Accordingly, with an ohm meter, you should get the following:
+Label your wires. Thenk, with an ohm meter, you should get the following:
 
 From | To | What
 ---- | -- | ----
-Green | Yellow | An open circuit most of the time, and zero ohms (switch closure) for a small portion of each pedal rotation
-Black | Yellow | About 10K ohms
-Red | Yellow | Between 0 and 10k ohms - increases as you rotate the magnet assembly
-Red | Black | Between 0 and 10K ohms - decreases as you rotate the magnet assembly
+CRANK_PIN | GROUND | An open circuit most of the time, and zero ohms (switch closure) for a small portion of each pedal rotation
+RESISTANCE_TOP | GROUND | About 10K ohms
+RESISTANCE_PIN | GROUND | Between 0 and 10k ohms - increases as you rotate the magnet assembly
+RESISTANCE_PIN | RESiSTANCE_TOP | Between 0 and 10K ohms - decreases as you rotate the magnet assembly
+
+One user found that their older M3 used the following color scheme:
+
+Conductor | What
+--------- | ----
+Red       | CRANK_PIN
+Yellow    | RESISTANCE_TOP
+Green     | RESISTANCE_PIN
+Black     | GROUND
