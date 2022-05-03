@@ -78,12 +78,14 @@ From bottom-right, the layers are
 
     Make a chart like the one below, substituting your conductor colors in the last column:
 
-    Pin | Function | Feather connection | Cable color | Internal color (*Your colors here*)
+    Pin | Function | Feather connection | Cable color* | Internal color (*Your colors here*)
     ----| -------- | ------------------ | ----------- | --------------
     1 (top) | Common | GND (shared with the OLED display) | Yellow | Green 
     2 | Crank switch | A1 via 2.2K resistor | Green | Yellow
     3 | Resistance sense | A2 | Red | Orange
     4 (bottom) | Resistance sensor excitation | A3 | Black | Red
+    
+    \*NOTE: The cable colors are from a later model M3. Check that your are the same. There's more guidance in HOWTO.md.
 
 1. Check for proper connections.
 
