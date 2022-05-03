@@ -85,7 +85,7 @@ From bottom-right, the layers are
     3 | Resistance sense | A2 | Red | Orange
     4 (bottom) | Resistance sensor excitation | A3 | Black | Red
     
-    \*NOTE: The cable colors are from a later model M3. Check that your are the same. There's more guidance in HOWTO.md.
+    \*NOTE: The cable colors are from a later model M3. Check that your are the same. There's more guidance in [HOWTO](HOWTO.md).
 
 1. Check for proper connections.
 
@@ -140,7 +140,7 @@ From bottom-right, the layers are
 
 1. Configure, upload code, and test.
 
-    Follow the instructions in the HOWTO to configure the code. It's a matter of choosing some options (or keeping the defaults), and, importantly, **being sure that pin selections in bike_interface.h match your wiring**. The HOWTO also has more detail on what to expect the first time the code is run.
+    Follow the instructions in the HOWTO to configure the code. It's a matter of choosing some options (or keeping the defaults), and, importantly, **being sure that pin selections in bike_interface.h match your wiring**. The [HOWTO](HOWTO.md) also has more detail on what to expect the first time the code is run.
 
     Connect to USB and upload the code to the Feather. Once uploaded and running, you should see the scrolling KBikeBLE startup log, then the display showing zero RPM, Gear 1 (probably) and zero Power.
 
@@ -156,27 +156,25 @@ From bottom-right, the layers are
 
 1. Completing the case.
 
-   If you haven't done so already, place the additional layers of the case. Layers 1 through four are tied together with stiff on either side of the USB opening. Insert the wire
+   If you haven't done so already, place the additional layers of the case. Layers 1 through four are tied together with stiff wire on either side of the USB opening. Insert the wire, then trim to length and push it in all the way.
 
    ![Reinforcing wire](docs/Reinforcing_wire.jpeg)
 
-   then trim to length and push it in all the way.
-
-   Then add layer 5 which helps to locate the display, the mask layer, and the top cover, and secure with screws at the corner.
+   Then add layer 5, which helps to locate the display, then the mask layer the top cover, and secure with screws at the corner.
 
 1. Mounting.
 
-    Remove the black plastic piece that covers the top of the cast metal mount. You may need to squeeze the little tabs to release it. They break easily, but also aren't essential to keeping the cover in place, as it ends up being trapped behind the mounted computer.
+    On the bike, the black plastic piece that covers the top of the cast metal computer mount. You may need to squeeze the little tabs to release it. They break easily, but also aren't essential to keeping the cover in place, as it ends up being trapped behind the mounted computer.
 
-    Line the three holes on the mount up with the holes on the bottom plate. Between the rubber strain relief that protrudes from the bike frame and the connector on the back of the computer, there is far more wire than you need.  
-
-    Carefully "fold" the wire back on itself, approximately in thirds. It will fit. 
+    Line the three holes on the mount up with the holes on the bottom plate. 
+    
+    Between the rubber strain relief that protrudes from the bike frame and the connector on the back of the computer, there is far more wire than you need.  Carefully "fold" the wire back on itself, approximately in thirds. It will fit. 
     
     *Alternative:* If desired, you can shorten the cable between the strain relief and the computer, either by cutting and splicing, or by cutting and installing a new IDC connector. 
 
     ![Folded wire](docs/Folded_wire.jpeg)
 
-    Replace the black plastic cover, and secure the computer to the bike with the three M3.0 screws.
+    Replace the black plastic cover, and secure the computer to the bike with three M3 screws.
 
     ![Mounted](docs/Mounted.jpeg)
 
@@ -189,6 +187,6 @@ You're finished with your build and install.
 You're almost ready to go. Now see **Calibrating to your bike** in the [HOWTO](HOWTO.md). In brief, it's
 
 1. Connect to the bike using the Arduino serial monitor (USB) or Adafruit Bluefruit Connect app.
-1. Have your Keiser cal tool on hand, and enter *calibrate*. Confirm with *y* and follow the prompts.
+1. Have your Keiser cal tool on hand. Type *calibrate* and press return or send. Confirm with *y* and follow the prompts.
 1. Enter *activate* and confirm with *y* to have the bike use the new parameters.
 1. Once satisfied, enter *write* and confirm with *y* to save the parameters in nonvolatile memory.
