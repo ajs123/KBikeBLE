@@ -3,7 +3,7 @@
 This provides an overview for builders, along with instructions for setup, calibration, etc. For a detailed example build in a case that mounts seamlessly to the bike, see the [Build document](Build.md).
 
 ## Parts needed
-1. [Adafruit Feather nRF52840 Express](https://www.adafruit.com/product/4062)
+1. [Adafruit Feather nRF52840 Express](https://www.adafruit.com/product/4062) or equivalent. See [here](https://github.com/ajs123/KBikeBLE/issues/14) for notes on using a SEEED Xiao nRF52840 board.
 
     ![Feather](docs/nRF52840FE.jpg)
 1. A generic 128x64 pixel, 1.3" diagonal monochrome OLED display. These displays most commonly incorporate SH1106, SD1306, or similar display driver chips. Be sure that it's supported by the [U8G2 library](https://github.com/olikraus/u8g2). To use the KBikeBLE code essentially as-is, choose one that comes configured for an I2C interface. 
