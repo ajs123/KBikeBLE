@@ -1,4 +1,5 @@
 ## TODO
+- FIX: [https://github.com/ajs123/KBikeBLE/issues/16]
 - Verify that the speed (duplicate of Keiser/Peloton) is being calculated correctly
 - Documentation
   - More comprehensive writeup of calibration
