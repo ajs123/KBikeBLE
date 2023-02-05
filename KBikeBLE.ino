@@ -157,7 +157,7 @@ uint16_t prev_pwr = 0;
   uint8_t prev_batt = 0;
 #endif
 const char *rg_labels[2] = {"GEAR", "RES %"};
-const char *rg_label = GEAR_DISPLAY ? rg_labels[0] : rg_labels[1];
+const char *rg_label = gear_display ? rg_labels[0] : rg_labels[1];
 
 void display_numbers()
 {
