@@ -1,5 +1,4 @@
 # KBikeBLE
-### --- NOTE: Important changes starting with v1.0: Default pin assignments in bike_interface.h have changed, and the default ADC reference is now Vdd. See Calibration_change.md for details.---
 Arduino-based replacement computer for a Keiser M3 spin bike with Bluetooth services and display
  ![Photo](docs/Cover_photo.jpeg)
 ## What it does
@@ -15,6 +14,10 @@ Replaces the computer on a Keiser M3 spin bike and adds Bluetooth Low Energy (BL
 * Command line "console," accessible via USB or Bluetooth, used mostly for one-time calibration but also providing some debugging functions.
 * Calibration to an individual bike using a procedure similar the Keiser's, using the Keiser calibration tool.
 * If used about an hour per day, runs for a month or two on an 1800 mAHr LiPo battery
+
+### NOTES: 
+* Important changes starting with v1.0: Default pin assignments in bike_interface.h have changed, and the default ADC reference is now Vdd. See Calibration_change.md for details.
+* Use Released v1.1 if intending to enable the FTMS service, to avoid an issue at startup with FTMS.
 
 ### Computer hardware
 This code is for an Adafruit nrf52840 Express microcontroller and a generic 128x64 OLED display (SH1106 driver in the development system). Modestly experienced programmers should be able to adapt the code pretty readily to any board with a Nordic nrf52840. The U8G2 display library will accommodate other 128x64 displays, with a change in just one line in the code.

@@ -3,7 +3,7 @@
 This provides an overview for builders, along with instructions for setup, calibration, etc. For a detailed example build in a case that mounts seamlessly to the bike, see the [Build document](Build.md).
 
 ## Parts needed
-1. [Adafruit Feather nRF52840 Express](https://www.adafruit.com/product/4062)
+1. [Adafruit Feather nRF52840 Express](https://www.adafruit.com/product/4062) or equivalent. See [here](https://github.com/ajs123/KBikeBLE/issues/14) for notes on using a SEEED Xiao nRF52840 board.
 
     ![Feather](docs/nRF52840FE.jpg)
 1. A generic 128x64 pixel, 1.3" diagonal monochrome OLED display. These displays most commonly incorporate SH1106, SD1306, or similar display driver chips. Be sure that it's supported by the [U8G2 library](https://github.com/olikraus/u8g2). To use the KBikeBLE code essentially as-is, choose one that comes configured for an I2C interface. 
@@ -38,26 +38,25 @@ This provides an overview for builders, along with instructions for setup, calib
   
   Assuming you're using an I2C display...
 
-  Part | Pin/conductor | Where | Notes
+  Part | Pin/conductor | Where | Notes (CAPS = macros defined in bike_interface.h)
   ---- | ------------- | ----- | -----
   OLED display | Vcc | 3V
   || SCL | SCL
   || SDA | SDA
   || Gnd | Gnd | Ground is the only pin that has to be connected to two places: the OLED display and the RJ9 cable to the bike.
   Battery || JST connector | Be sure that the polarity is correct!
-  RJ9 (bike) | Green* | Pin A1** | Crank (pedal rotation) switch***
-  || Red* | Pin A2** | Resistance magnet position
-  || Black* | Pin A3** | Resistance sensor excitation. It's connected to a GPIO pin so that the software can de-energize the sensor on the bike to save power.
-  || Yellow* | Gnd | Resistance sensor / crank switch common
+  RJ9 (bike) | Green* | Pin A1** | CRANK_PIN - Crank (pedal rotation) switch***
+  || Red* | Pin A2** | RESISTANCE_PIN - Resistance magnet position
+  || Black* | Pin A3** | RESISTANCE_TOP - Resistance sensor excitation. Using GPIO pin frot his allows the software can de-energize the sensor on the bike to save power.
+  || Yellow* | Gnd | GROUND - Resistance sensor / crank switch common
 
   \* Colors refer to the standard RJ9 conductors on most cables, as tested with an M3 manufactured in 2012. **It's recommended that you check the colors as described at the end of this document.**
   
-  \** The resistance magnet position can use any analog input (A0-A5) and the sensor excitation and crank switch can use any GPIO (5-13 or A0-A5). If changing any of these, edit bike_interface.h accordingly. These pin assignments are conducive to running a tidy ribbon cable from the Feather to a socket that mates with the
-  stock Keiser cable.
+  \** The resistance magnet position can use any analog input (A0-A5) and the sensor excitation and crank switch can use any GPIO (5-13 or A0-A5). If changing any of these, edit bike_interface.h accordingly. These pin assignments are conducive to running a tidy ribbon cable from the Feather to a socket that mates with the stock Keiser cable.
 
   \*** Include a 2.2K Ohm resistor between the green wire and the pin on the Feather.
 
-  Note: An option for the display is to use the [Adafruit FeatherWing display](https://www.adafruit.com/product/4650). In that case, all you'll need to connect is the four RJ9 conductors and the series resistor. If you use the FeatherWing and install all of the header pins, Button A will be on Feather Pin 9, which per the chart below is assigned to the crank switch. You can (a) leave that header pin off of the FeatherWing, (b) use a different pin for the crank switch (green wire) and edit bike_interface.h accordinlgy, or (c) don't worry about it, as it won't hurt anything, and the button could be handy for testing without plugging into the bike.
+  Note: An option for the display is to use the [Adafruit FeatherWing display](https://www.adafruit.com/product/4650). In that case, all you'll need to connect is the four RJ9 conductors and the series resistor. If you use the FeatherWing and install all of the header pins, buttons A, B, and C to the left of the display will be connected to pins 9, 6, and 5 of the Feather. Choosing one of these as the crank switch in bike_interface.h may be handy for testing when not connected to a bike.
 
 ## Installing the software
 * Install the Arduino IDE if you haven't already, and follow Adafruit's instructions for installing the core for the Feather nRF52840 Express. 
@@ -209,20 +208,29 @@ KBikeBLE also provides the BLE FiTness Machine Service (FTMS). That service is i
 
 Here's how to check the correspondence between conductor color and function. 
 
-What we expect is...
+What we expect (at least for M3's manufactured in the latter half of the product life) is...
 
 Conductor | What
 --------- | ----
-Green     | Crank (pedal rotation) switch
-Black     | One end of the resistance sense potentiometer
-Red       | Resistance magnet position
-Yellow    | Other end (common or ground) of the resistance sense potentiometer and the crank switch
+Green     | CRANK_PIN - Crank (pedal rotation) switch
+Black     | RESISTANCE_TOP - One end of the resistance sense potentiometer
+Red       | RESISTANCE_PIN - Resistance magnet position
+Yellow    | GROUND - Other end (common or ground) of the resistance sense potentiometer and the crank switch
 
-Accordingly, with an ohm meter, you should get the following:
+Label your wires. Thenk, with an ohm meter, you should get the following:
 
 From | To | What
 ---- | -- | ----
-Green | Yellow | An open circuit most of the time, and zero ohms (switch closure) for a small portion of each pedal rotation
-Black | Yellow | About 10K ohms
-Red | Yellow | Between 0 and 10k ohms - increases as you rotate the magnet assembly
-Red | Black | Between 0 and 10K ohms - decreases as you rotate the magnet assembly
+CRANK_PIN | GROUND | An open circuit most of the time, and zero ohms (switch closure) for a small portion of each pedal rotation
+RESISTANCE_TOP | GROUND | About 10K ohms
+RESISTANCE_PIN | GROUND | Between 0 and 10k ohms - increases as you rotate the magnet assembly
+RESISTANCE_PIN | RESiSTANCE_TOP | Between 0 and 10K ohms - decreases as you rotate the magnet assembly
+
+One user found that their older M3 used the following color scheme:
+
+Conductor | What
+--------- | ----
+Red       | CRANK_PIN
+Yellow    | RESISTANCE_TOP
+Green     | RESISTANCE_PIN
+Black     | GROUND
