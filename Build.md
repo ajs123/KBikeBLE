@@ -76,15 +76,17 @@ From bottom-right, the layers are
 
     ![Connectors_colors](docs/Connector_colors.jpeg)
 
-    Make a chart like the one below, substituting your conductor colors in the last column:
+    Make a chart like the one below, substituting your conductor colors in the last column. *You may also need to substitute in the second to last column, if you have an older model bike*.
 
-    Pin | Function | Feather connection | Cable color | Internal color (*Your colors here*)
+    Pin | Function | Feather connection | Cable color* | Internal color (*Your colors here*)
     ----| -------- | ------------------ | ----------- | --------------
     1 (top) | Common | GND (shared with the OLED display) | Yellow | Green 
     2 | Crank switch | A1 via 2.2K resistor | Green | Yellow
     3 | Resistance sense | A2 | Red | Orange
     4 (bottom) | Resistance sensor excitation | A3 | Black | Red
 
+    \* These are the colors in the **later model** Keiser bikes.
+     
 1. Check for proper connections.
 
     With the Keiser cable plugged into the bike, measure as follows with an Ohm meter. Note that pin numbers are from column 1 of the chart above.

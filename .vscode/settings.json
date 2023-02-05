@@ -1,0 +1,19 @@
+{
+    "files.associations": {
+        "atomic": "cpp",
+        "cctype": "cpp",
+        "climits": "cpp",
+        "cmath": "cpp",
+        "cstdarg": "cpp",
+        "cstddef": "cpp",
+        "cstdint": "cpp",
+        "cstdio": "cpp",
+        "cstdlib": "cpp",
+        "type_traits": "cpp",
+        "limits": "cpp",
+        "*.tcc": "cpp",
+        "cinttypes": "cpp",
+        "cstdbool": "cpp",
+        "typeinfo": "cpp"
+    }
+}
