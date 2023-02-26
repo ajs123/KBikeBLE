@@ -134,7 +134,7 @@ You can do the same things through the Serial Monitor in the Arduino IDE, under 
 
 The gearshift lever, through a cable, moves the magnetic brake so that more or less of the flywheel is under the influence of the magnets. Behind the cone-shaped magnet assembly, there's a position sensing potentiometer that's linked the the magnet assembly through gear teeth that mesh when the magnet assembly is placed on the bike. The rotation of both parts during assembly can vary. Calibration basically involves correcting for the variation.
 
-As with the Keiser computer, the present calibration procedure requires Keiser's red calibration tool.  The tool fits over the flywheel and provides  "pockets" on both sides of the flywheel to receive the magnets. Holding the magnets against the tool provides the needed index position.
+As with the Keiser computer, the present calibration procedure requires Keiser's red calibration tool.  You can buy one from a place that sells Keiser parts. There's also a user-contributed 3D modele [here](https://github.com/ajs123/KBikeBLE/issues/17) for those with 3D printers. The tool fits over the flywheel and provides  "pockets" on both sides of the flywheel to receive the magnets. Holding the magnets against the tool provides the needed index position.
 
 With the tool in hand, proceed as follows:
 
