@@ -26,7 +26,7 @@ This provides an overview for builders, along with instructions for setup, calib
 
       ![RJ9 receptacle](docs/RJ9_receptacle.jpg)
 1. Transient protection for the crank (pedal) rotation input to the Feather. While this may be unnecessary since the sensor assembly on the bike has a diode for the same purpose, and the GPIO pins have some protection as well, the prototype used a 2.2K ohm resistor between the crank switch and the digital input to the Feather.
-1. Some sort of case. The prototype used a nice paper box with a piece of an old CD case as a window in the lid, and pieces of foam to take up unused space inside. Remember that the OLED display is configured for *portrait* (vertical) orientation.
+1. Some sort of case. The prototype used a nice paper box with a piece of an old CD case as a window in the lid, and pieces of foam to take up unused space inside. The document ![Build.md](Build.md) gives an example of a nice case using layers of laser cut acrylic. [This 3D printed case](https://www.thingiverse.com/thing:6318006/files) was contributed by a user. Whatever you do, remember that the OLED display is configured for *portrait* (vertical) orientation.
 1. A Keiser calibration tool. See the section below on calibration for alternatives.
 
     ![Keiser tool](docs/Keiser_tool.jpg)
