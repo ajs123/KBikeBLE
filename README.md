@@ -18,6 +18,7 @@ Replaces the computer on a Keiser M3 spin bike and adds Bluetooth Low Energy (BL
 ### NOTES: 
 * Important changes starting with v1.0: Default pin assignments in bike_interface.h have changed, and the default ADC reference is now Vdd. See Calibration_change.md for details.
 * Use Released v1.1 if intending to enable the FTMS service, to avoid an issue at startup with FTMS.
+* Note to Apple watch users: Once paired, your Apple watch may connect whenever KBikeBLE is started up with the watch within its Bluetooth range, preventing individual apps from connecting. Unless and until the apps you use acquire data via the watch, you may need to forget KBikeBLE in your Apple watch Bluetooth settings.
 
 ### Computer hardware
 This code is for an Adafruit nrf52840 Express microcontroller and a generic 128x64 OLED display (SH1106 driver in the development system). Modestly experienced programmers should be able to adapt the code pretty readily to any board with a Nordic nrf52840. The U8G2 display library will accommodate other 128x64 displays, with a change in just one line in the code.
