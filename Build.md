@@ -13,8 +13,7 @@ This build is done with seven layers of 3 mm clear acrylic. Design/drawing was d
 - Wiring and connectors
   - Suitable wire, such as rainbow ribbon cable 
   - Heat shrink tubing
-  - A 4-pin, 2 mm pitch IDC connector (like the one on the cable in the bike) - LINK
-  - A 4-pin, 2 mm pitch inline connector - LINK
+  - A 4-pin, 2 mm pitch inline connector - [DigiKey link](https://www.digikey.com/en/products/detail/te-connectivity-amp-connectors/292156-4/2272986)
   - (Optional) A new cable for the bike, if you'de like to easily swap between KBikeBLE and the old Keiser computer.
 - Electronics
   - Adafruit Feather nrf52840 Express
